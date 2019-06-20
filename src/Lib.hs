@@ -24,8 +24,6 @@ import           Control.Monad        ( foldM )
 import           Control.Monad.Trans.Class
                                       ( lift )
 import           Data.Strict.Tuple    ( Pair((:!:)) )
-import qualified Options.Applicative as O
-
 import qualified Control.Monad.Trans.Resource
                                      as Resource
 import           Control.Monad.IO.Class
@@ -42,13 +40,8 @@ import           Flags                ( Hdl(Std, File)
                                     
                                       )
 
-
-gatherSet :: (Monad m, Hashable a, Eq a) => P.Stream (P.Of a) m r -> m (HashMap a a)
-gatherSet = P.fold_ (\m k -> Map.insert k k m) Map.empty id
-
 force :: Monad m => P.Stream (BS8.ByteString m) m r -> P.Stream (P.Of ByteString) m r
 force = S.mapsM BS8.toStrict
-
 
 duplicate :: forall a m r . Monad m => P.Stream (P.Of a) m r -> P.Stream (P.Of (Pair a a)) m r
 duplicate = P.map (\x -> x :!: x)
@@ -103,9 +96,6 @@ approximate
   -> P.Stream (P.Of (Pair Word64 v)) m ()
 approximate key = inject (\bs -> let SipHash h = hash key bs in h) id
 
-
-
-
 hin :: (MonadIO m, Resource.MonadResource m) => Hdl -> BS8.ByteString m ()
 hin Std         = BS8.stdin
 hin (File path) = BS8.readFile path
@@ -113,7 +103,6 @@ hin (File path) = BS8.readFile path
 hout :: (MonadIO m, Resource.MonadResource m) => Hdl -> BS8.ByteString m () -> m ()
 hout Std         = BS8.stdout
 hout (File path) = BS8.writeFile path
-
 
 kin
   :: (MonadIO m, Resource.MonadResource m)
@@ -124,8 +113,6 @@ kin (Keyed hks hvs) = S.zipsWith' (\q (k P.:> ks) (v P.:> vs) -> (k :!: v) P.:> 
                                   (f hks)
                                   (f hvs)
   where f = force . BS8.lines . hin
-
-
 
 format :: Monad m => P.Stream (P.Of (Pair k ByteString)) m a -> BS8.ByteString m a
 format = BS8.unlines . S.maps (\((_k :!: v) P.:> r) -> BS8.fromStrict v >> return r)
@@ -147,5 +134,3 @@ run cmd =
      where
       approximateWith f =
         Resource.runResourceT $ hout o $ format $ sub (f (kin p)) (fmap (f . kin) ms)
-
-

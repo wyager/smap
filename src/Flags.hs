@@ -93,7 +93,6 @@ subCommand = O.command "sub" $ O.info (value O.<**> O.helper) O.fullDesc
       "Defaults to stdout."
     )
 
-
 command :: IO Command
 command =
   O.execParser (O.info ((O.subparser (catCommand <> subCommand)) O.<**> O.helper) O.fullDesc)
