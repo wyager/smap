@@ -1,6 +1,7 @@
 module Main where
 
 import qualified Lib
+import qualified Flags
 
 main :: IO ()
-main = Lib.main
+main = Lib.run =<< Flags.command

@@ -1,55 +1,56 @@
 module Lib
-  ( main
+  ( run
   )
 where
 
-import           Data.HashMap.Strict           as Map
-                                                ( insert
-                                                , empty
-                                                )
-import           Data.HashMap.Strict           as Map
-                                                ( HashMap
-                                                , member
-                                                )
-import           Data.Hashable                  ( Hashable )
-import           Control.Lens.At                ( at ) -- for some strange reason I can't import alterF from Data.HashMap.Strict
-import           Data.ByteString.Char8          ( ByteString )
+import           Data.HashMap.Strict as Map
+                                      ( insert
+                                      , empty
+                                      )
+import           Data.HashMap.Strict as Map
+                                      ( HashMap
+                                      , member
+                                      )
+import           Data.Hashable        ( Hashable )
+import           Control.Lens.At      ( at ) -- for some strange reason I can't import alterF from Data.HashMap.Strict
+import           Data.ByteString.Char8
+                                      ( ByteString )
 import qualified Data.ByteString.Streaming.Char8
-                                               as BS8
-import qualified Streaming.Prelude             as P
-import qualified Streaming                     as S
-import           Data.List.NonEmpty             ( NonEmpty((:|)) )
-import           Control.Monad                  ( foldM )
-import           Control.Monad.Trans.Class      ( lift )
-import           Data.Strict.Tuple              ( Pair((:!:)) )
-import qualified Options.Applicative           as O
+                                     as BS8
+import qualified Streaming.Prelude   as P
+import qualified Streaming           as S
+import           Data.List.NonEmpty   ( NonEmpty((:|)) )
+import           Control.Monad        ( foldM )
+import           Control.Monad.Trans.Class
+                                      ( lift )
+import           Data.Strict.Tuple    ( Pair((:!:)) )
+import qualified Options.Applicative as O
 
-import qualified Control.Monad.Trans.Resource  as Resource
-import           Control.Monad.IO.Class         ( MonadIO )
-import           Crypto.MAC.SipHash             ( SipKey(..)
-                                                , SipHash(..)
-                                                , hash
-                                                )
-import           Data.Word                      ( Word64 )
-import Flags(Hdl(Std, File), Keyed(Keyed,UnKeyed), Command(Cat,Sub), Accuracy(Approximate,Exact), command)
+import qualified Control.Monad.Trans.Resource
+                                     as Resource
+import           Control.Monad.IO.Class
+                                      ( MonadIO )
+import           Crypto.MAC.SipHash   ( SipKey(..)
+                                      , SipHash(..)
+                                      , hash
+                                      )
+import           Data.Word            ( Word64 )
+import           Flags                ( Hdl(Std, File)
+                                      , Keyed(Keyed, UnKeyed)
+                                      , Command(Cat, Sub)
+                                      , Accuracy(Approximate, Exact)
+                                    
+                                      )
 
 
-gatherSet
-  :: (Monad m, Hashable a, Eq a) => P.Stream (P.Of a) m r -> m (HashMap a a)
+gatherSet :: (Monad m, Hashable a, Eq a) => P.Stream (P.Of a) m r -> m (HashMap a a)
 gatherSet = P.fold_ (\m k -> Map.insert k k m) Map.empty id
 
-force
-  :: Monad m
-  => P.Stream (BS8.ByteString m) m r
-  -> P.Stream (P.Of ByteString) m r
+force :: Monad m => P.Stream (BS8.ByteString m) m r -> P.Stream (P.Of ByteString) m r
 force = S.mapsM BS8.toStrict
 
 
-duplicate
-  :: forall a m r
-   . Monad m
-  => P.Stream (P.Of a) m r
-  -> P.Stream (P.Of (Pair a a)) m r
+duplicate :: forall a m r . Monad m => P.Stream (P.Of a) m r -> P.Stream (P.Of (Pair a a)) m r
 duplicate = P.map (\x -> x :!: x)
 
 cat
@@ -64,10 +65,7 @@ cat streams = foldM filter Map.empty streams *> return ()
     -> P.Stream (P.Of (Pair k v)) m ()
     -> P.Stream (P.Of (Pair k v)) m (HashMap k ())
   filter seen = P.foldM_ filter' (return seen) return . S.hoist lift
-  filter'
-    :: HashMap k ()
-    -> (Pair k v)
-    -> P.Stream (P.Of (Pair k v)) m (HashMap k ())
+  filter' :: HashMap k () -> (Pair k v) -> P.Stream (P.Of (Pair k v)) m (HashMap k ())
   filter' seen (bs :!: v) = case flip at insert bs seen of
     Nothing       -> return seen
     Just inserted -> P.yield (bs :!: v) >> return inserted
@@ -112,8 +110,7 @@ hin :: (MonadIO m, Resource.MonadResource m) => Hdl -> BS8.ByteString m ()
 hin Std         = BS8.stdin
 hin (File path) = BS8.readFile path
 
-hout
-  :: (MonadIO m, Resource.MonadResource m) => Hdl -> BS8.ByteString m () -> m ()
+hout :: (MonadIO m, Resource.MonadResource m) => Hdl -> BS8.ByteString m () -> m ()
 hout Std         = BS8.stdout
 hout (File path) = BS8.writeFile path
 
@@ -123,28 +120,24 @@ kin
   => Keyed
   -> P.Stream (P.Of (Pair ByteString ByteString)) m ()
 kin (UnKeyed hdl  ) = duplicate $ force $ BS8.lines $ hin hdl
-kin (Keyed hks hvs) = S.zipsWith'
-  (\q (k P.:> ks) (v P.:> vs) -> (k :!: v) P.:> (q ks vs))
-  (f hks)
-  (f hvs)
+kin (Keyed hks hvs) = S.zipsWith' (\q (k P.:> ks) (v P.:> vs) -> (k :!: v) P.:> (q ks vs))
+                                  (f hks)
+                                  (f hvs)
   where f = force . BS8.lines . hin
 
 
 
-format
-  :: Monad m => P.Stream (P.Of (Pair k ByteString)) m a -> BS8.ByteString m a
-format =
-  BS8.unlines . S.maps (\((_k :!: v) P.:> r) -> BS8.fromStrict v >> return r)
+format :: Monad m => P.Stream (P.Of (Pair k ByteString)) m a -> BS8.ByteString m a
+format = BS8.unlines . S.maps (\((_k :!: v) P.:> r) -> BS8.fromStrict v >> return r)
 
-main = do
-  cmd <- command
+run :: Command -> IO ()
+run cmd = 
   case cmd of
     Cat accuracy is o -> case accuracy of
       Exact           -> approximateWith id
       Approximate key -> approximateWith (approximate key)
      where
-      approximateWith f =
-        Resource.runResourceT $ hout o $ format $ cat $ fmap (f . kin) inputs
+      approximateWith f = Resource.runResourceT $ hout o $ format $ cat $ fmap (f . kin) inputs
       inputs = case is of
         []       -> (UnKeyed Std) :| []
         (i : is) -> (i :| is)
@@ -152,8 +145,7 @@ main = do
       Exact           -> approximateWith id
       Approximate key -> approximateWith (approximate key)
      where
-      approximateWith f = Resource.runResourceT $ hout o $ format $ sub
-        (f (kin p))
-        (fmap (f . kin) ms)
+      approximateWith f =
+        Resource.runResourceT $ hout o $ format $ sub (f (kin p)) (fmap (f . kin) ms)
 
 

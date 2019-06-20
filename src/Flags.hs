@@ -1,21 +1,28 @@
-module Flags(Hdl(Std, File), Keyed(Keyed,UnKeyed), Command(Cat,Sub), Accuracy(Approximate,Exact), command) where
+module Flags
+  ( Hdl(Std, File)
+  , Keyed(Keyed, UnKeyed)
+  , Command(Cat, Sub)
+  , Accuracy(Approximate, Exact)
+  , command
+  )
+where
 
-import qualified Data.Attoparsec.Text          as A
-import qualified Data.Text                     as Text
-import qualified Options.Applicative           as O
-import           Control.Applicative            ( many
-                                                , (<|>)
-                                                )
-import           Crypto.MAC.SipHash             ( SipKey(..))
+import qualified Data.Attoparsec.Text
+                                     as A
+import qualified Data.Text           as Text
+import qualified Options.Applicative as O
+import           Control.Applicative  ( many
+                                      , (<|>)
+                                      )
+import           Crypto.MAC.SipHash   ( SipKey(..) )
 
 data Hdl = Std | File FilePath
 
-data Keyed = Keyed Hdl Hdl | UnKeyed Hdl 
+data Keyed = Keyed Hdl Hdl | UnKeyed Hdl
 
 data Accuracy = Approximate SipKey | Exact
 
-data Command = Cat Accuracy [Keyed] Hdl
-             | Sub Accuracy Keyed [Keyed] Hdl
+data Command = Cat Accuracy [Keyed] Hdl | Sub Accuracy Keyed [Keyed] Hdl
 
 hdl :: A.Parser Hdl
 hdl = stdin <|> path
@@ -45,10 +52,8 @@ accuracy = approx <|> exact
  where
   approx = O.flag'
     (Approximate (SipKey 0 0))
-    (  O.short 'a'
-    <> O.long "approximate"
-    <> O.help
-         "For deduplication, store a 64-bit siphash rather than the whole line. Can save memory"
+    (O.short 'a' <> O.long "approximate" <> O.help
+      "For deduplication, store a 64-bit siphash rather than the whole line. Can save memory"
     )
   exact = pure Exact
 
@@ -81,9 +86,7 @@ subCommand = O.command "sub" $ O.info (value O.<**> O.helper) O.fullDesc
     )
   minus = O.argument
     (aToO keyed)
-    (  O.metavar "MINUSFILE"
-    <> O.help "Can specify 0 or more files. Use '-' for stdin."
-    )
+    (O.metavar "MINUSFILE" <> O.help "Can specify 0 or more files. Use '-' for stdin.")
   out = O.option
     (aToO hdl)
     (O.metavar "OUTFILE" <> O.short 'o' <> O.long "out" <> O.value Std <> O.help
@@ -92,5 +95,5 @@ subCommand = O.command "sub" $ O.info (value O.<**> O.helper) O.fullDesc
 
 
 command :: IO Command
-command = O.execParser
-    (O.info ((O.subparser (catCommand <> subCommand)) O.<**> O.helper) O.fullDesc)
+command =
+  O.execParser (O.info ((O.subparser (catCommand <> subCommand)) O.<**> O.helper) O.fullDesc)
