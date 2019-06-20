@@ -8,7 +8,7 @@ import           Data.HashMap.Strict           as Map
                                                 , empty
                                                 )
 import           Data.HashMap.Strict           as Map
-                                                ( HashMap )
+                                                ( HashMap, member )
 import           Data.Hashable                  ( Hashable )
 import           Control.Lens.At                ( at ) -- for some strange reason I can't import alterF from Data.HashMap.Strict
 import           Data.ByteString.Char8          ( ByteString )
@@ -40,14 +40,13 @@ gatherSet
   :: (Monad m, Hashable a, Eq a) => P.Stream (P.Of a) m r -> m (HashMap a a)
 gatherSet = P.fold_ (\m k -> Map.insert k k m) Map.empty id
 
-{-# INLINE force #-}
 force
   :: Monad m
   => P.Stream (BS8.ByteString m) m r
   -> P.Stream (P.Of ByteString) m r
 force = S.mapsM BS8.toStrict
 
-{-# INLINE duplicate #-}
+
 duplicate
   :: forall a m r
    . Monad m
@@ -55,7 +54,6 @@ duplicate
   -> P.Stream (P.Of (Pair a a)) m r
 duplicate = P.map (\x -> x :!: x)
 
-{-# INLINE cat #-}
 cat
   :: forall m k v
    . (Hashable k, Eq k, Monad m)
@@ -68,7 +66,7 @@ cat streams = foldM filter Map.empty streams *> return ()
     -> P.Stream (P.Of (Pair k v)) m ()
     -> P.Stream (P.Of (Pair k v)) m (HashMap k ())
   filter seen =
-    fmap P.fst' . P.foldM filter' (return seen) return . S.hoist lift
+    P.foldM_ filter' (return seen) return . S.hoist lift
   filter'
     :: HashMap k () -> (Pair k v) -> P.Stream (P.Of (Pair k v)) m (HashMap k ())
   filter' seen (bs :!: v) = case flip at insert bs seen of
@@ -77,6 +75,21 @@ cat streams = foldM filter Map.empty streams *> return ()
    where
     insert Nothing   = Just (Just ())
     insert (Just ()) = Nothing
+
+sub 
+  :: forall m k v _v
+   . (Hashable k, Eq k, Monad m)
+  => P.Stream (P.Of (Pair k v)) m ()
+  -> [P.Stream (P.Of (Pair k _v)) m ()]
+  -> P.Stream (P.Of (Pair k v)) m ()
+sub add subs = do
+    subtract <- lift $ gathers subs
+    P.filter (\(k :!: _) -> not (k `member` subtract)) add
+    where
+    gathers :: [P.Stream (P.Of (Pair k _v)) m ()] -> m (HashMap k ())
+    gathers = foldM gather Map.empty
+    gather :: HashMap k () -> P.Stream (P.Of (Pair k _v)) m () -> m (HashMap k ())
+    gather subs = P.fold_ (\s (k :!: _) -> Map.insert k () s) subs id 
 
 inject
   :: Monad m
@@ -144,7 +157,8 @@ aToO :: A.Parser a -> O.ReadM a
 aToO p = O.eitherReader (A.parseOnly p . Text.pack)
 
 
-data Command = Cat Accuracy [Keyed] Hdl deriving Show
+data Command = Cat Accuracy [Keyed] Hdl
+             | Sub Accuracy Keyed [Keyed] Hdl deriving Show
 
 catI :: O.Mod O.CommandFields Command
 catI = O.command "cat" $ O.info (value O.<**> O.helper) O.fullDesc
@@ -155,6 +169,28 @@ catI = O.command "cat" $ O.info (value O.<**> O.helper) O.fullDesc
     (  O.metavar "INFILE"
     <> O.help
          "Can specify 0 or more files. Use '-' for stdin. Use +keyfile,valfile for separate keys and values. Uses stdin if none specified."
+    )
+  out = O.option
+    (aToO hdl)
+    (O.metavar "OUTFILE" <> O.short 'o' <> O.long "out" <> O.value Std <> O.help
+      "Defaults to stdout."
+    )
+
+subI :: O.Mod O.CommandFields Command
+subI = O.command "sub" $ O.info (value O.<**> O.helper) O.fullDesc
+ where
+  value = Sub <$> accuracy <*> plus <*> many minus <*> out
+  plus   = O.argument
+    (aToO keyed)
+    (  O.metavar "PLUSFILE"
+    <> O.help
+         "Can specify 0 or more files. Use '-' for stdin. Use +keyfile,valfile for separate keys and values."
+    )
+  minus   = O.argument
+    (aToO keyed)
+    (  O.metavar "MINUSFILE"
+    <> O.help
+         "Can specify 0 or more files. Use '-' for stdin."
     )
   out = O.option
     (aToO hdl)
@@ -185,7 +221,7 @@ format =
   BS8.unlines . S.maps (\((_k :!: v) P.:> r) -> BS8.fromStrict v >> return r)
 
 main = do
-  cmd <- O.execParser (O.info ((O.subparser catI) O.<**> O.helper) O.fullDesc)
+  cmd <- O.execParser (O.info ((O.subparser (catI <> subI)) O.<**> O.helper) O.fullDesc)
   case cmd of
     Cat accuracy is o -> case accuracy of
       Exact           -> approximateWith id
@@ -196,4 +232,11 @@ main = do
       inputs = case is of
         []       -> (UnKeyed Std) :| []
         (i : is) -> (i :| is)
+    Sub accuracy p ms o -> case accuracy of
+      Exact           -> approximateWith id
+      Approximate key -> approximateWith (approximate key)
+     where
+      approximateWith f =
+        Resource.runResourceT $ hout o $ format $ sub (f (kin p)) (fmap (f . kin) ms)
+
 
