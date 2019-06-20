@@ -23,11 +23,7 @@ import           Control.Monad                  ( foldM )
 import           Control.Monad.Trans.Class      ( lift )
 import           Data.Strict.Tuple              ( Pair((:!:)) )
 import qualified Options.Applicative           as O
-import           Control.Applicative            ( many
-                                                , (<|>)
-                                                )
-import qualified Data.Attoparsec.Text          as A
-import qualified Data.Text                     as Text
+
 import qualified Control.Monad.Trans.Resource  as Resource
 import           Control.Monad.IO.Class         ( MonadIO )
 import           Crypto.MAC.SipHash             ( SipKey(..)
@@ -35,7 +31,7 @@ import           Crypto.MAC.SipHash             ( SipKey(..)
                                                 , hash
                                                 )
 import           Data.Word                      ( Word64 )
-
+import Flags(Hdl(Std, File), Keyed(Keyed,UnKeyed), Command(Cat,Sub), Accuracy(Approximate,Exact), command)
 
 
 gatherSet
@@ -111,7 +107,6 @@ approximate key = inject (\bs -> let SipHash h = hash key bs in h) id
 
 
 
-data Hdl = Std | File FilePath deriving Show
 
 hin :: (MonadIO m, Resource.MonadResource m) => Hdl -> BS8.ByteString m ()
 hin Std         = BS8.stdin
@@ -122,7 +117,6 @@ hout
 hout Std         = BS8.stdout
 hout (File path) = BS8.writeFile path
 
-data Keyed = Keyed Hdl Hdl | UnKeyed Hdl deriving Show
 
 kin
   :: (MonadIO m, Resource.MonadResource m)
@@ -135,87 +129,7 @@ kin (Keyed hks hvs) = S.zipsWith'
   (f hvs)
   where f = force . BS8.lines . hin
 
-hdl :: A.Parser Hdl
-hdl = stdin <|> path
- where
-  stdin = Std <$ A.char '-'
-  path  = File . Text.unpack <$> A.takeWhile (/= ',')
 
-
-keyed :: A.Parser Keyed
-keyed =
-  (keyed <|> unkeyed)
-    <*    (A.endOfInput A.<?> "more filepath characters than expected")
-    A.<?> "Could not parse filepath"
- where
-  unkeyed = UnKeyed <$> hdl
-  keyed   = do
-    _ <- A.char '+'
-    k <- hdl
-    _ <- A.char ','
-    v <- hdl
-    return (Keyed k v)
-
-aToO :: A.Parser a -> O.ReadM a
-aToO p = O.eitherReader (A.parseOnly p . Text.pack)
-
-
-data Command = Cat Accuracy [Keyed] Hdl
-             | Sub Accuracy Keyed [Keyed] Hdl deriving Show
-
-catI :: O.Mod O.CommandFields Command
-catI = O.command "cat" $ O.info (value O.<**> O.helper) O.fullDesc
- where
-  value = Cat <$> accuracy <*> many in_ <*> out
-  in_   = O.argument
-    (aToO keyed)
-    (  O.metavar "INFILE"
-    <> O.help
-         "Can specify 0 or more files. Use '-' for stdin. Use +keyfile,valfile for separate keys and values. Uses stdin if none specified."
-    )
-  out = O.option
-    (aToO hdl)
-    (O.metavar "OUTFILE" <> O.short 'o' <> O.long "out" <> O.value Std <> O.help
-      "Defaults to stdout."
-    )
-
-subI :: O.Mod O.CommandFields Command
-subI = O.command "sub" $ O.info (value O.<**> O.helper) O.fullDesc
- where
-  value = Sub <$> accuracy <*> plus <*> many minus <*> out
-  plus  = O.argument
-    (aToO keyed)
-    (  O.metavar "PLUSFILE"
-    <> O.help
-         "Can specify 0 or more files. Use '-' for stdin. Use +keyfile,valfile for separate keys and values."
-    )
-  minus = O.argument
-    (aToO keyed)
-    (  O.metavar "MINUSFILE"
-    <> O.help "Can specify 0 or more files. Use '-' for stdin."
-    )
-  out = O.option
-    (aToO hdl)
-    (O.metavar "OUTFILE" <> O.short 'o' <> O.long "out" <> O.value Std <> O.help
-      "Defaults to stdout."
-    )
-
-data Accuracy = Approximate SipKey | Exact
-instance Show Accuracy where
-  show Exact           = "Exact"
-  show (Approximate _) = "Approximate"
-
-accuracy :: O.Parser Accuracy
-accuracy = approx <|> exact
- where
-  approx = O.flag'
-    (Approximate (SipKey 0 0))
-    (  O.short 'a'
-    <> O.long "approximate"
-    <> O.help
-         "For deduplication, store a 64-bit siphash rather than the whole line. Can save memory"
-    )
-  exact = pure Exact
 
 format
   :: Monad m => P.Stream (P.Of (Pair k ByteString)) m a -> BS8.ByteString m a
@@ -223,8 +137,7 @@ format =
   BS8.unlines . S.maps (\((_k :!: v) P.:> r) -> BS8.fromStrict v >> return r)
 
 main = do
-  cmd <- O.execParser
-    (O.info ((O.subparser (catI <> subI)) O.<**> O.helper) O.fullDesc)
+  cmd <- command
   case cmd of
     Cat accuracy is o -> case accuracy of
       Exact           -> approximateWith id

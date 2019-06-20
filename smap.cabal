@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f6f5ad7af535f35a8d8fdeef0c23edc3fc015205d9897a273217b68e6d699e6d
+-- hash: bd5c0e9d6fd3523ad5ed549d83dd335b03cddf4952d5f018931a9e94801b5c57
 
 name:           smap
 version:        0.1.0.0
@@ -27,6 +27,7 @@ source-repository head
 
 library
   exposed-modules:
+      Flags
       Lib
   other-modules:
       Paths_smap
