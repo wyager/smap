@@ -8,7 +8,9 @@ import           Data.HashMap.Strict           as Map
                                                 , empty
                                                 )
 import           Data.HashMap.Strict           as Map
-                                                ( HashMap, member )
+                                                ( HashMap
+                                                , member
+                                                )
 import           Data.Hashable                  ( Hashable )
 import           Control.Lens.At                ( at ) -- for some strange reason I can't import alterF from Data.HashMap.Strict
 import           Data.ByteString.Char8          ( ByteString )
@@ -65,10 +67,11 @@ cat streams = foldM filter Map.empty streams *> return ()
     :: HashMap k ()
     -> P.Stream (P.Of (Pair k v)) m ()
     -> P.Stream (P.Of (Pair k v)) m (HashMap k ())
-  filter seen =
-    P.foldM_ filter' (return seen) return . S.hoist lift
+  filter seen = P.foldM_ filter' (return seen) return . S.hoist lift
   filter'
-    :: HashMap k () -> (Pair k v) -> P.Stream (P.Of (Pair k v)) m (HashMap k ())
+    :: HashMap k ()
+    -> (Pair k v)
+    -> P.Stream (P.Of (Pair k v)) m (HashMap k ())
   filter' seen (bs :!: v) = case flip at insert bs seen of
     Nothing       -> return seen
     Just inserted -> P.yield (bs :!: v) >> return inserted
@@ -76,20 +79,20 @@ cat streams = foldM filter Map.empty streams *> return ()
     insert Nothing   = Just (Just ())
     insert (Just ()) = Nothing
 
-sub 
+sub
   :: forall m k v _v
    . (Hashable k, Eq k, Monad m)
   => P.Stream (P.Of (Pair k v)) m ()
   -> [P.Stream (P.Of (Pair k _v)) m ()]
   -> P.Stream (P.Of (Pair k v)) m ()
 sub add subs = do
-    subtract <- lift $ gathers subs
-    P.filter (\(k :!: _) -> not (k `member` subtract)) add
-    where
-    gathers :: [P.Stream (P.Of (Pair k _v)) m ()] -> m (HashMap k ())
-    gathers = foldM gather Map.empty
-    gather :: HashMap k () -> P.Stream (P.Of (Pair k _v)) m () -> m (HashMap k ())
-    gather subs = P.fold_ (\s (k :!: _) -> Map.insert k () s) subs id 
+  subtract <- lift $ gathers subs
+  P.filter (\(k :!: _) -> not (k `member` subtract)) add
+ where
+  gathers :: [P.Stream (P.Of (Pair k _v)) m ()] -> m (HashMap k ())
+  gathers = foldM gather Map.empty
+  gather :: HashMap k () -> P.Stream (P.Of (Pair k _v)) m () -> m (HashMap k ())
+  gather subs = P.fold_ (\s (k :!: _) -> Map.insert k () s) subs id
 
 inject
   :: Monad m
@@ -180,17 +183,16 @@ subI :: O.Mod O.CommandFields Command
 subI = O.command "sub" $ O.info (value O.<**> O.helper) O.fullDesc
  where
   value = Sub <$> accuracy <*> plus <*> many minus <*> out
-  plus   = O.argument
+  plus  = O.argument
     (aToO keyed)
     (  O.metavar "PLUSFILE"
     <> O.help
          "Can specify 0 or more files. Use '-' for stdin. Use +keyfile,valfile for separate keys and values."
     )
-  minus   = O.argument
+  minus = O.argument
     (aToO keyed)
     (  O.metavar "MINUSFILE"
-    <> O.help
-         "Can specify 0 or more files. Use '-' for stdin."
+    <> O.help "Can specify 0 or more files. Use '-' for stdin."
     )
   out = O.option
     (aToO hdl)
@@ -221,7 +223,8 @@ format =
   BS8.unlines . S.maps (\((_k :!: v) P.:> r) -> BS8.fromStrict v >> return r)
 
 main = do
-  cmd <- O.execParser (O.info ((O.subparser (catI <> subI)) O.<**> O.helper) O.fullDesc)
+  cmd <- O.execParser
+    (O.info ((O.subparser (catI <> subI)) O.<**> O.helper) O.fullDesc)
   case cmd of
     Cat accuracy is o -> case accuracy of
       Exact           -> approximateWith id
@@ -236,7 +239,8 @@ main = do
       Exact           -> approximateWith id
       Approximate key -> approximateWith (approximate key)
      where
-      approximateWith f =
-        Resource.runResourceT $ hout o $ format $ sub (f (kin p)) (fmap (f . kin) ms)
+      approximateWith f = Resource.runResourceT $ hout o $ format $ sub
+        (f (kin p))
+        (fmap (f . kin) ms)
 
 
