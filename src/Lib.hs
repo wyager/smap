@@ -93,25 +93,18 @@ approximate
   -> P.Stream (P.Of (Pair Word64 v)) m ()
 approximate key = inject (\bs -> let SipHash h = hash key bs in h) id
 
-cat_main :: IO ()
-cat_main =
-  BS8.stdout
-    $ BS8.unlines
-    $ S.maps
-        (\((_k :!: v) P.:> r) ->
-          BS8.fromStrict v >> BS8.singleton '\n' >> return r
-        )
-    $ cat
-    $ (:| [])
-    $ duplicate
-    $ force
-    $ BS8.lines BS8.stdin
+
 
 data Hdl = Std | File FilePath deriving Show
 
 hin :: (MonadIO m, Resource.MonadResource m) => Hdl -> BS8.ByteString m ()
 hin Std         = BS8.stdin
 hin (File path) = BS8.readFile path
+
+hout
+  :: (MonadIO m, Resource.MonadResource m) => Hdl -> BS8.ByteString m () -> m ()
+hout Std         = BS8.stdout
+hout (File path) = BS8.writeFile path
 
 data Keyed = Keyed Hdl Hdl | UnKeyed Hdl deriving Show
 
@@ -126,6 +119,11 @@ kin (Keyed hks hvs) = S.zipsWith'
   (f hvs)
   where f = force . BS8.lines . hin
 
+hdl :: A.Parser Hdl
+hdl = stdin <|> path
+ where
+  stdin = Std <$ A.char '-'
+  path  = File . Text.unpack <$> A.takeWhile (/= ',')
 
 
 keyed :: A.Parser Keyed
@@ -134,38 +132,34 @@ keyed =
     <*    (A.endOfInput A.<?> "more filepath characters than expected")
     A.<?> "Could not parse filepath"
  where
-  file    = stdin <|> path
-  stdin   = Std <$ A.char '-'
-  path    = File . Text.unpack <$> A.takeWhile (/= ',')
-  unkeyed = UnKeyed <$> file
+  unkeyed = UnKeyed <$> hdl
   keyed   = do
     _ <- A.char '+'
-    k <- file
+    k <- hdl
     _ <- A.char ','
-    v <- file
+    v <- hdl
     return (Keyed k v)
 
-readKeyed :: O.ReadM Keyed
-readKeyed = O.eitherReader (A.parseOnly keyed . Text.pack)
+aToO :: A.Parser a -> O.ReadM a
+aToO p = O.eitherReader (A.parseOnly p . Text.pack)
 
-data Command = Cat Accuracy Keyed [Keyed] Keyed deriving Show
+
+data Command = Cat Accuracy [Keyed] Hdl deriving Show
 
 catI :: O.Mod O.CommandFields Command
 catI = O.command "cat" $ O.info (value O.<**> O.helper) O.fullDesc
  where
-  value = Cat <$> accuracy <*> in_ <*> many in_ <*> out
-  in_   = O.argument readKeyed (O.metavar "INFILE")
-  out   = O.option
-    readKeyed
-    (  O.showDefaultWith
-        (\case
-          (UnKeyed Std) -> "stdout"
-          _             -> error "Program error: default changed"
-        )
-    <> O.metavar "OUTFILE"
-    <> O.short 'o'
-    <> O.long "out"
-    <> O.value (UnKeyed Std)
+  value = Cat <$> accuracy <*> many in_ <*> out
+  in_   = O.argument
+    (aToO keyed)
+    (  O.metavar "INFILE"
+    <> O.help
+         "Can specify 0 or more files. Use '-' for stdin. Use +keyfile,valfile for separate keys and values. Uses stdin if none specified."
+    )
+  out = O.option
+    (aToO hdl)
+    (O.metavar "OUTFILE" <> O.short 'o' <> O.long "out" <> O.value Std <> O.help
+      "Defaults to stdout."
     )
 
 data Accuracy = Approximate SipKey | Exact
@@ -176,22 +170,30 @@ instance Show Accuracy where
 accuracy :: O.Parser Accuracy
 accuracy = approx <|> exact
  where
-  approx =
-    O.flag' (Approximate (SipKey 0 0)) (O.short 'a' <> O.long "approximate")
+  approx = O.flag'
+    (Approximate (SipKey 0 0))
+    (  O.short 'a'
+    <> O.long "approximate"
+    <> O.help
+         "For deduplication, store a 64-bit siphash rather than the whole line. Can save memory"
+    )
   exact = pure Exact
 
+format
+  :: Monad m => P.Stream (P.Of (Pair k ByteString)) m a -> BS8.ByteString m a
+format =
+  BS8.unlines . S.maps (\((_k :!: v) P.:> r) -> BS8.fromStrict v >> return r)
 
 main = do
-  cmd <- O.execParser (O.info ((O.subparser catI) O.<**> O.helper) O.idm)
+  cmd <- O.execParser (O.info ((O.subparser catI) O.<**> O.helper) O.fullDesc)
   case cmd of
-    Cat accuracy i is o ->
-      let approximateWith f =
-              Resource.runResourceT
-                $ BS8.stdout
-                $ BS8.unlines
-                $ S.maps (\((_k :!: v) P.:> r) -> BS8.fromStrict v >> return r)
-                $ cat (fmap (f . kin) (i :| is))
-      in  case accuracy of
-            Exact           -> approximateWith id
-            Approximate key -> approximateWith (approximate key)
+    Cat accuracy is o -> case accuracy of
+      Exact           -> approximateWith id
+      Approximate key -> approximateWith (approximate key)
+     where
+      approximateWith f =
+        Resource.runResourceT $ hout o $ format $ cat $ fmap (f . kin) inputs
+      inputs = case is of
+        []       -> (UnKeyed Std) :| []
+        (i : is) -> (i :| is)
 
