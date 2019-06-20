@@ -21,8 +21,6 @@ import qualified Control.Monad.Trans.Resource as Resource
 import           Control.Monad.IO.Class (MonadIO)
 import           Crypto.MAC.SipHash (SipKey(..), SipHash(..), hash)
 import           Data.Word (Word64)
--- import           Control.Monad.Trans.Resource (ResourceT, runResourceT)
--- import           GHC.IO.Handle (Handle)
 
 
 
@@ -113,14 +111,16 @@ accuracy = approx <|> exact
     approx = O.flag' (Approximate (SipKey 0 0)) (O.short 'a' <> O.long "approximate") 
     exact = pure Exact 
 
--- cat_main = BS8.stdout $ BS8.unlines $ S.maps (\((_k :!: v) P.:> r) -> BS8.fromStrict v >> BS8.singleton '\n' >> return r) $ cat $ (:|[]) $ duplicate $ force $ BS8.lines BS8.stdin 
-
 
 main = do
-    cmd <- O.execParser (O.info (O.subparser catI) O.idm)
+    cmd <- O.execParser (O.info ((O.subparser catI) O.<**> O.helper) O.idm)
     case cmd of
         Cat accuracy i is o -> 
-            let approximateWith f = Resource.runResourceT $ BS8.stdout $ BS8.unlines $ S.maps (\((_k :!: v) P.:> r) -> BS8.fromStrict v  >> return r) $ cat (fmap (f . kin) (i :| is)) in 
+            let approximateWith f = 
+                    Resource.runResourceT $ BS8.stdout $ BS8.unlines 
+                    $ S.maps (\((_k :!: v) P.:> r) -> BS8.fromStrict v  >> return r) 
+                    $ cat (fmap (f . kin) (i :| is)) 
+            in 
             case accuracy of 
                 Exact -> approximateWith id
                 Approximate key -> approximateWith (approximate key)
