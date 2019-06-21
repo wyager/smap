@@ -57,7 +57,7 @@ type SetOperation f
   => f (S.Stream (S.Of (Pair k ByteString)) (Resource.ResourceT IO) ()) -- Input maps
   -> S.Stream (S.Of (Pair k ByteString)) (Resource.ResourceT IO) () -- Output map
 
-cat :: SetOperation NonEmpty
+cat :: SetOperation []
 cat streams = foldM filter Map.empty streams *> return ()
  where
   filter seen = P.foldM_ filter' (return seen) return . S.hoist lift
@@ -125,8 +125,8 @@ run cmd = case cmd of
   Union     accuracy is o  -> withAccuracy accuracy cat inputs o
    where
     inputs = case is of
-      []         -> (UnKeyed Std) :| []
-      (i : rest) -> (i :| rest)
+      [] -> [UnKeyed Std]
+      xs -> xs
  where
   withAccuracy accuracy (g :: SetOperation f) i o = case accuracy of
     Exact           -> approximateWith id
