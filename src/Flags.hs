@@ -1,7 +1,7 @@
 module Flags
   ( Hdl(Std, File)
-  , Keyed(Keyed, UnKeyed)
-  , Command(Cat, Sub, Intersect)
+  , SetDescriptor(Keyed, UnKeyed)
+  , Command(Union, Subtract, Intersect)
   , Accuracy(Approximate, Exact)
   , command
   )
@@ -18,13 +18,13 @@ import           Crypto.MAC.SipHash   ( SipKey(..) )
 
 data Hdl = Std | File FilePath
 
-data Keyed = Keyed Hdl Hdl | UnKeyed Hdl
+data SetDescriptor = Keyed Hdl Hdl | UnKeyed Hdl
 
 data Accuracy = Approximate SipKey | Exact
 
-data Command = Cat Accuracy [Keyed] Hdl 
-             | Sub Accuracy Keyed [Keyed] Hdl
-             | Intersect Accuracy [Keyed] Hdl
+data Command = Union Accuracy [SetDescriptor] Hdl
+             | Subtract Accuracy SetDescriptor [SetDescriptor] Hdl
+             | Intersect Accuracy [SetDescriptor] Hdl
 
 hdl :: A.Parser Hdl
 hdl = stdin <|> path
@@ -32,8 +32,8 @@ hdl = stdin <|> path
   stdin = Std <$ A.char '-'
   path  = File . Text.unpack <$> A.takeWhile (/= ',')
 
-keyed :: A.Parser Keyed
-keyed =
+setDescriptor :: A.Parser SetDescriptor
+setDescriptor =
   (keyed <|> unkeyed)
     <*    (A.endOfInput A.<?> "more filepath characters than expected")
     A.<?> "Could not parse filepath"
@@ -63,9 +63,9 @@ accuracy = approx <|> exact
 catCommand :: O.Mod O.CommandFields Command
 catCommand = O.command "cat" $ O.info (value O.<**> O.helper) O.fullDesc
  where
-  value = Cat <$> accuracy <*> many in_ <*> out
+  value = Union <$> accuracy <*> many in_ <*> out
   in_   = O.argument
-    (aToO keyed)
+    (aToO setDescriptor)
     (  O.metavar "INFILE"
     <> O.help
          "Can specify 0 or more files. Use '-' for stdin. Use +keyfile,valfile for separate keys and values. Uses stdin if none specified."
@@ -79,15 +79,15 @@ catCommand = O.command "cat" $ O.info (value O.<**> O.helper) O.fullDesc
 subCommand :: O.Mod O.CommandFields Command
 subCommand = O.command "sub" $ O.info (value O.<**> O.helper) O.fullDesc
  where
-  value = Sub <$> accuracy <*> plus <*> many minus <*> out
+  value = Subtract <$> accuracy <*> plus <*> many minus <*> out
   plus  = O.argument
-    (aToO keyed)
+    (aToO setDescriptor)
     (  O.metavar "PLUSFILE"
     <> O.help
          "Can specify 0 or more files. Use '-' for stdin. Use +keyfile,valfile for separate keys and values."
     )
   minus = O.argument
-    (aToO keyed)
+    (aToO setDescriptor)
     (O.metavar "MINUSFILE" <> O.help "Can specify 0 or more files. Use '-' for stdin.")
   out = O.option
     (aToO hdl)
@@ -99,8 +99,8 @@ intersectCommand :: O.Mod O.CommandFields Command
 intersectCommand = O.command "intersect" $ O.info (value O.<**> O.helper) O.fullDesc
  where
   value = Intersect <$> accuracy <*> many in_ <*> out
-  in_  = O.argument
-    (aToO keyed)
+  in_   = O.argument
+    (aToO setDescriptor)
     (  O.metavar "FILE"
     <> O.help
          "Can specify 0 or more files. Use '-' for stdin. Use +keyfile,valfile for separate keys and values."
@@ -112,5 +112,5 @@ intersectCommand = O.command "intersect" $ O.info (value O.<**> O.helper) O.full
     )
 
 command :: IO Command
-command =
-  O.execParser (O.info ((O.subparser (catCommand <> subCommand <> intersectCommand)) O.<**> O.helper) O.fullDesc)
+command = O.execParser
+  (O.info ((O.subparser (catCommand <> subCommand <> intersectCommand)) O.<**> O.helper) O.fullDesc)

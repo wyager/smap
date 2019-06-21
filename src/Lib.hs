@@ -3,7 +3,12 @@ module Lib
   )
 where
 
-import           Data.HashMap.Strict as Map
+import           Prelude       hiding ( filter
+                                      , subtract
+                                      , init
+                                      , sin
+                                      )
+import qualified Data.HashMap.Strict as Map
                                       ( insert
                                       , empty
                                       )
@@ -34,10 +39,9 @@ import           Crypto.MAC.SipHash   ( SipKey(..)
                                       )
 import           Data.Word            ( Word64 )
 import           Flags                ( Hdl(Std, File)
-                                      , Keyed(Keyed, UnKeyed)
-                                      , Command(Cat, Sub, Intersect)
+                                      , SetDescriptor(Keyed, UnKeyed)
+                                      , Command(Union, Subtract, Intersect)
                                       , Accuracy(Approximate, Exact)
-                                    
                                       )
 
 force :: Monad m => P.Stream (BS8.ByteString m) m r -> P.Stream (P.Of ByteString) m r
@@ -67,52 +71,48 @@ cat streams = foldM filter Map.empty streams *> return ()
     insert (Just ()) = Nothing
 
 sub
-  :: forall m k v _v
+  :: forall m k v
    . (Hashable k, Eq k, Monad m)
-  => P.Stream (P.Of (Pair k v)) m ()
-  -> [P.Stream (P.Of (Pair k _v)) m ()]
+  => NonEmpty (P.Stream (P.Of (Pair k v)) m ())
   -> P.Stream (P.Of (Pair k v)) m ()
-sub add subs = do
-  subtract <- lift $ gathers subs
-  P.filter (\(k :!: _) -> not (k `member` subtract)) add
+sub (pos :| negs) = do
+  subtract <- lift $ gathers negs
+  P.filter (\(k :!: _) -> not (k `member` subtract)) pos
  where
-  gathers :: [P.Stream (P.Of (Pair k _v)) m ()] -> m (HashMap k ())
+  gathers :: [P.Stream (P.Of (Pair k v)) m ()] -> m (HashMap k ())
   gathers = foldM gather Map.empty
-  gather :: HashMap k () -> P.Stream (P.Of (Pair k _v)) m () -> m (HashMap k ())
+  gather :: HashMap k () -> P.Stream (P.Of (Pair k v)) m () -> m (HashMap k ())
   gather subs = P.fold_ (\s (k :!: _) -> Map.insert k () s) subs id
 
-intersect :: forall m k v _v
-   . (Hashable k, Eq k, Monad m) =>
-    [P.Stream (P.Of (Pair k v)) m ()] -> P.Stream (P.Of (Pair k v)) m ()
-intersect [] = return ()
-intersect [x] = x
-intersect (x:y:zs) = do
-    init <- lift $ collapse x
-    go init y zs
-    where
-    collapse = P.fold_ (\hm (k :!: v) -> Map.insert k v hm)  Map.empty id
-    eliminate hm = P.filter (\(k :!: _) -> k `member` hm)
-    go :: HashMap k v -> P.Stream (P.Of (Pair k v)) m () -> [P.Stream (P.Of (Pair k v)) m ()] -> P.Stream (P.Of (Pair k v)) m ()
-    go hm s [] = eliminate hm s
-    go hm s (t:ts) = do
-        hm' <- lift $ collapse $ eliminate hm s
-        go hm' t ts
+intersect
+  :: forall m k v
+   . (Hashable k, Eq k, Monad m)
+  => [P.Stream (P.Of (Pair k v)) m ()]
+  -> P.Stream (P.Of (Pair k v)) m ()
+intersect []           = return ()
+intersect [x         ] = x
+intersect (x : y : zs) = do
+  init <- lift $ collapse x
+  go init y zs
+ where
+  collapse = P.fold_ (\hm (k :!: v) -> Map.insert k v hm) Map.empty id
+  eliminate hm = P.filter (\(k :!: _) -> k `member` hm)
+  go
+    :: HashMap k v
+    -> P.Stream (P.Of (Pair k v)) m ()
+    -> [P.Stream (P.Of (Pair k v)) m ()]
+    -> P.Stream (P.Of (Pair k v)) m ()
+  go hm s []       = eliminate hm s
+  go hm s (t : ts) = do
+    hm' <- lift $ collapse $ eliminate hm s
+    go hm' t ts
 
+keyMap
+  :: Monad m => (k1 -> k2) -> P.Stream (P.Of (Pair k1 v)) m () -> P.Stream (P.Of (Pair k2 v)) m ()
+keyMap f = P.map (\(k :!: v) -> (f k :!: v))
 
-inject
-  :: Monad m
-  => (k1 -> k2)
-  -> (v1 -> v2)
-  -> P.Stream (P.Of (Pair k1 v1)) m ()
-  -> P.Stream (P.Of (Pair k2 v2)) m ()
-inject f g = P.map (\(k :!: v) -> (f k :!: g v))
-
-approximate
-  :: Monad m
-  => SipKey
-  -> P.Stream (P.Of (Pair ByteString v)) m ()
-  -> P.Stream (P.Of (Pair Word64 v)) m ()
-approximate key = inject (\bs -> let SipHash h = hash key bs in h) id
+sip :: SipKey -> ByteString -> Word64
+sip key bs = let SipHash h = hash key bs in h
 
 hin :: (MonadIO m, Resource.MonadResource m) => Hdl -> BS8.ByteString m ()
 hin Std         = BS8.stdin
@@ -122,12 +122,12 @@ hout :: (MonadIO m, Resource.MonadResource m) => Hdl -> BS8.ByteString m a -> m 
 hout Std         = BS8.stdout
 hout (File path) = BS8.writeFile path
 
-kin
+sin
   :: (MonadIO m, Resource.MonadResource m)
-  => Keyed
+  => SetDescriptor
   -> P.Stream (P.Of (Pair ByteString ByteString)) m ()
-kin (UnKeyed hdl  ) = duplicate $ force $ BS8.lines $ hin hdl
-kin (Keyed hks hvs) = S.zipsWith' (\q (k P.:> ks) (v P.:> vs) -> (k :!: v) P.:> (q ks vs))
+sin (UnKeyed hdl  ) = duplicate $ force $ BS8.lines $ hin hdl
+sin (Keyed hks hvs) = S.zipsWith' (\q (k P.:> ks) (v P.:> vs) -> (k :!: v) P.:> (q ks vs))
                                   (f hks)
                                   (f hvs)
   where f = force . BS8.lines . hin
@@ -135,26 +135,24 @@ kin (Keyed hks hvs) = S.zipsWith' (\q (k P.:> ks) (v P.:> vs) -> (k :!: v) P.:> 
 format :: Monad m => P.Stream (P.Of (Pair k ByteString)) m a -> BS8.ByteString m a
 format = BS8.unlines . S.maps (\((_k :!: v) P.:> r) -> BS8.fromStrict v >> return r)
 
+type SetOperation f
+  =  forall k
+   . (Hashable k, Eq k)
+  => f (S.Stream (S.Of (Pair k ByteString)) (Resource.ResourceT IO) ()) -- Input sets
+  -> S.Stream (S.Of (Pair k ByteString)) (Resource.ResourceT IO) () -- Output sets
+
 run :: Command -> IO ()
-run cmd = 
-  case cmd of
-    Cat accuracy is o -> case accuracy of
-      Exact           -> approximateWith id
-      Approximate key -> approximateWith (approximate key)
-     where
-      approximateWith f = Resource.runResourceT $ hout o $ format $ cat $ fmap (f . kin) inputs
-      inputs = case is of
-        []       -> (UnKeyed Std) :| []
-        (i : is) -> (i :| is)
-    Sub accuracy p ms o -> case accuracy of
-      Exact           -> approximateWith id
-      Approximate key -> approximateWith (approximate key)
-     where
-      approximateWith f =
-        Resource.runResourceT $ hout o $ format $ sub (f (kin p)) (fmap (f . kin) ms)
-    Intersect accuracy is o -> case accuracy of
-      Exact           -> approximateWith id
-      Approximate key -> approximateWith (approximate key)
-     where
-      approximateWith f =
-        Resource.runResourceT $ hout o $ format $ intersect (fmap (f . kin) is)
+run cmd = case cmd of
+  Subtract accuracy p ms o -> withAccuracy accuracy sub (p :| ms) o
+  Intersect accuracy is o  -> withAccuracy accuracy intersect is o
+  Union     accuracy is o  -> withAccuracy accuracy cat inputs o
+   where
+    inputs = case is of
+      []         -> (UnKeyed Std) :| []
+      (i : rest) -> (i :| rest)
+ where
+  withAccuracy accuracy (g :: SetOperation f) i o = case accuracy of
+    Exact           -> approximateWith id
+    Approximate key -> approximateWith (sip key)
+    where approximateWith f = Resource.runResourceT $ hout o $ format $ g $ fmap (keyMap f . sin) i
+
