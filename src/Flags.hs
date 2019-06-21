@@ -54,8 +54,10 @@ accuracy = approx <|> exact
  where
   approx = O.flag'
     (Approximate (SipKey 0 0))
-    (O.short 'a' <> O.long "approximate" <> O.help
-      "For deduplication, store a 64-bit siphash rather than the whole line. Can save memory"
+    (  O.short 'a'
+    <> O.long "approximate"
+    <> O.help
+         "For deduplication, store a 64-bit siphash rather than the whole line. Can save memory, depending on the set operation"
     )
   exact = pure Exact
 

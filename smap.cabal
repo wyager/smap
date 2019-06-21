@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: bd5c0e9d6fd3523ad5ed549d83dd335b03cddf4952d5f018931a9e94801b5c57
+-- hash: 5605417c5f3d6db1feed88f6f1342d0189270cc8928dbf425b78f1d4294542d1
 
 name:           smap
 version:        0.1.0.0
@@ -33,7 +33,7 @@ library
       Paths_smap
   hs-source-dirs:
       src
-  default-extensions: TupleSections RankNTypes ScopedTypeVariables LambdaCase
+  default-extensions: TupleSections RankNTypes ScopedTypeVariables LambdaCase BangPatterns
   ghc-options: -O2 -Wall -fexpose-all-unfoldings
   build-depends:
       attoparsec
@@ -59,7 +59,7 @@ executable smap-exe
       Paths_smap
   hs-source-dirs:
       app
-  default-extensions: TupleSections RankNTypes ScopedTypeVariables LambdaCase
+  default-extensions: TupleSections RankNTypes ScopedTypeVariables LambdaCase BangPatterns
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -O2 -fspecialize-aggressively
   build-depends:
       attoparsec
@@ -87,7 +87,7 @@ test-suite smap-test
       Paths_smap
   hs-source-dirs:
       test
-  default-extensions: TupleSections RankNTypes ScopedTypeVariables LambdaCase
+  default-extensions: TupleSections RankNTypes ScopedTypeVariables LambdaCase BangPatterns
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       attoparsec

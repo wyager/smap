@@ -50,45 +50,33 @@ force = S.mapsM BS8.toStrict
 duplicate :: forall a m r . Monad m => P.Stream (P.Of a) m r -> P.Stream (P.Of (Pair a a)) m r
 duplicate = P.map (\x -> x :!: x)
 
-cat
-  :: forall m k v
-   . (Hashable k, Eq k, Monad m)
-  => NonEmpty (P.Stream (P.Of (Pair k v)) m ())
-  -> P.Stream (P.Of (Pair k v)) m ()
+
+type SetOperation f
+  =  forall k
+   . (Hashable k, Eq k)
+  => f (S.Stream (S.Of (Pair k ByteString)) (Resource.ResourceT IO) ()) -- Input maps
+  -> S.Stream (S.Of (Pair k ByteString)) (Resource.ResourceT IO) () -- Output map
+
+cat :: SetOperation NonEmpty
 cat streams = foldM filter Map.empty streams *> return ()
  where
-  filter
-    :: HashMap k ()
-    -> P.Stream (P.Of (Pair k v)) m ()
-    -> P.Stream (P.Of (Pair k v)) m (HashMap k ())
   filter seen = P.foldM_ filter' (return seen) return . S.hoist lift
-  filter' :: HashMap k () -> (Pair k v) -> P.Stream (P.Of (Pair k v)) m (HashMap k ())
-  filter' seen (bs :!: v) = case flip at insert bs seen of
+  filter' (seen :: HashMap k ()) (bs :!: v) = case flip at insert bs seen of
     Nothing       -> return seen
     Just inserted -> P.yield (bs :!: v) >> return inserted
    where
     insert Nothing   = Just (Just ())
     insert (Just ()) = Nothing
 
-sub
-  :: forall m k v
-   . (Hashable k, Eq k, Monad m)
-  => NonEmpty (P.Stream (P.Of (Pair k v)) m ())
-  -> P.Stream (P.Of (Pair k v)) m ()
+sub :: SetOperation NonEmpty
 sub (pos :| negs) = do
   subtract <- lift $ gathers negs
   P.filter (\(k :!: _) -> not (k `member` subtract)) pos
  where
-  gathers :: [P.Stream (P.Of (Pair k v)) m ()] -> m (HashMap k ())
   gathers = foldM gather Map.empty
-  gather :: HashMap k () -> P.Stream (P.Of (Pair k v)) m () -> m (HashMap k ())
   gather subs = P.fold_ (\s (k :!: _) -> Map.insert k () s) subs id
 
-intersect
-  :: forall m k v
-   . (Hashable k, Eq k, Monad m)
-  => [P.Stream (P.Of (Pair k v)) m ()]
-  -> P.Stream (P.Of (Pair k v)) m ()
+intersect :: SetOperation []
 intersect []           = return ()
 intersect [x         ] = x
 intersect (x : y : zs) = do
@@ -97,11 +85,6 @@ intersect (x : y : zs) = do
  where
   collapse = P.fold_ (\hm (k :!: v) -> Map.insert k v hm) Map.empty id
   eliminate hm = P.filter (\(k :!: _) -> k `member` hm)
-  go
-    :: HashMap k v
-    -> P.Stream (P.Of (Pair k v)) m ()
-    -> [P.Stream (P.Of (Pair k v)) m ()]
-    -> P.Stream (P.Of (Pair k v)) m ()
   go hm s []       = eliminate hm s
   go hm s (t : ts) = do
     hm' <- lift $ collapse $ eliminate hm s
@@ -134,12 +117,6 @@ sin (Keyed hks hvs) = S.zipsWith' (\q (k P.:> ks) (v P.:> vs) -> (k :!: v) P.:> 
 
 format :: Monad m => P.Stream (P.Of (Pair k ByteString)) m a -> BS8.ByteString m a
 format = BS8.unlines . S.maps (\((_k :!: v) P.:> r) -> BS8.fromStrict v >> return r)
-
-type SetOperation f
-  =  forall k
-   . (Hashable k, Eq k)
-  => f (S.Stream (S.Of (Pair k ByteString)) (Resource.ResourceT IO) ()) -- Input sets
-  -> S.Stream (S.Of (Pair k ByteString)) (Resource.ResourceT IO) () -- Output sets
 
 run :: Command -> IO ()
 run cmd = case cmd of
