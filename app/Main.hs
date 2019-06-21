@@ -4,4 +4,6 @@ import qualified Lib
 import qualified Flags
 
 main :: IO ()
-main = Lib.run =<< Flags.command
+main = do
+    command <- Flags.command
+    Lib.run command
