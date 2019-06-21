@@ -1,7 +1,7 @@
 module Flags
   ( Hdl(Std, File)
   , Keyed(Keyed, UnKeyed)
-  , Command(Cat, Sub)
+  , Command(Cat, Sub, Intersect)
   , Accuracy(Approximate, Exact)
   , command
   )
@@ -22,7 +22,9 @@ data Keyed = Keyed Hdl Hdl | UnKeyed Hdl
 
 data Accuracy = Approximate SipKey | Exact
 
-data Command = Cat Accuracy [Keyed] Hdl | Sub Accuracy Keyed [Keyed] Hdl
+data Command = Cat Accuracy [Keyed] Hdl 
+             | Sub Accuracy Keyed [Keyed] Hdl
+             | Intersect Accuracy [Keyed] Hdl
 
 hdl :: A.Parser Hdl
 hdl = stdin <|> path
@@ -93,6 +95,22 @@ subCommand = O.command "sub" $ O.info (value O.<**> O.helper) O.fullDesc
       "Defaults to stdout."
     )
 
+intersectCommand :: O.Mod O.CommandFields Command
+intersectCommand = O.command "intersect" $ O.info (value O.<**> O.helper) O.fullDesc
+ where
+  value = Intersect <$> accuracy <*> many in_ <*> out
+  in_  = O.argument
+    (aToO keyed)
+    (  O.metavar "FILE"
+    <> O.help
+         "Can specify 0 or more files. Use '-' for stdin. Use +keyfile,valfile for separate keys and values."
+    )
+  out = O.option
+    (aToO hdl)
+    (O.metavar "OUTFILE" <> O.short 'o' <> O.long "out" <> O.value Std <> O.help
+      "Defaults to stdout."
+    )
+
 command :: IO Command
 command =
-  O.execParser (O.info ((O.subparser (catCommand <> subCommand)) O.<**> O.helper) O.fullDesc)
+  O.execParser (O.info ((O.subparser (catCommand <> subCommand <> intersectCommand)) O.<**> O.helper) O.fullDesc)

@@ -35,7 +35,7 @@ import           Crypto.MAC.SipHash   ( SipKey(..)
 import           Data.Word            ( Word64 )
 import           Flags                ( Hdl(Std, File)
                                       , Keyed(Keyed, UnKeyed)
-                                      , Command(Cat, Sub)
+                                      , Command(Cat, Sub, Intersect)
                                       , Accuracy(Approximate, Exact)
                                     
                                       )
@@ -81,6 +81,24 @@ sub add subs = do
   gather :: HashMap k () -> P.Stream (P.Of (Pair k _v)) m () -> m (HashMap k ())
   gather subs = P.fold_ (\s (k :!: _) -> Map.insert k () s) subs id
 
+intersect :: forall m k v _v
+   . (Hashable k, Eq k, Monad m) =>
+    [P.Stream (P.Of (Pair k v)) m ()] -> P.Stream (P.Of (Pair k v)) m ()
+intersect [] = return ()
+intersect [x] = x
+intersect (x:y:zs) = do
+    init <- lift $ collapse x
+    go init y zs
+    where
+    collapse = P.fold_ (\hm (k :!: v) -> Map.insert k v hm)  Map.empty id
+    eliminate hm = P.filter (\(k :!: _) -> k `member` hm)
+    go :: HashMap k v -> P.Stream (P.Of (Pair k v)) m () -> [P.Stream (P.Of (Pair k v)) m ()] -> P.Stream (P.Of (Pair k v)) m ()
+    go hm s [] = eliminate hm s
+    go hm s (t:ts) = do
+        hm' <- lift $ collapse $ eliminate hm s
+        go hm' t ts
+
+
 inject
   :: Monad m
   => (k1 -> k2)
@@ -100,7 +118,7 @@ hin :: (MonadIO m, Resource.MonadResource m) => Hdl -> BS8.ByteString m ()
 hin Std         = BS8.stdin
 hin (File path) = BS8.readFile path
 
-hout :: (MonadIO m, Resource.MonadResource m) => Hdl -> BS8.ByteString m () -> m ()
+hout :: (MonadIO m, Resource.MonadResource m) => Hdl -> BS8.ByteString m a -> m a
 hout Std         = BS8.stdout
 hout (File path) = BS8.writeFile path
 
@@ -134,3 +152,9 @@ run cmd =
      where
       approximateWith f =
         Resource.runResourceT $ hout o $ format $ sub (f (kin p)) (fmap (f . kin) ms)
+    Intersect accuracy is o -> case accuracy of
+      Exact           -> approximateWith id
+      Approximate key -> approximateWith (approximate key)
+     where
+      approximateWith f =
+        Resource.runResourceT $ hout o $ format $ intersect (fmap (f . kin) is)
