@@ -11,6 +11,8 @@ import           Prelude       hiding ( filter
 import qualified Data.HashMap.Strict as Map
                                       ( insert
                                       , empty
+                                      , foldrWithKey
+                                      , alter
                                       )
 import           Data.HashMap.Strict as Map
                                       ( HashMap
@@ -40,7 +42,7 @@ import           Crypto.MAC.SipHash   ( SipKey(..)
 import           Data.Word            ( Word64 )
 import           Flags                ( Hdl(Std, File)
                                       , SetDescriptor(Keyed, UnKeyed)
-                                      , Command(Union, Subtract, Intersect)
+                                      , Command(Union, Subtract, Intersect, Xor)
                                       , Accuracy(Approximate, Exact)
                                       )
 
@@ -90,6 +92,16 @@ intersect (x : y : zs) = do
     hm' <- lift $ collapse $ eliminate hm s
     go hm' t ts
 
+xor :: SetOperation []
+xor = go Map.empty
+ where
+  go parity []       = Map.foldrWithKey (\k v -> (P.yield (k :!: v) >>)) (return ()) parity
+  go parity (x : xs) = do
+    parity' <- lift $ P.fold_ toggle parity id x
+    go parity' xs
+    where toggle hm (k :!: v) = Map.alter (maybe (Just v) (const Nothing)) k hm
+
+
 keyMap
   :: Monad m => (k1 -> k2) -> P.Stream (P.Of (Pair k1 v)) m () -> P.Stream (P.Of (Pair k2 v)) m ()
 keyMap f = P.map (\(k :!: v) -> (f k :!: v))
@@ -122,6 +134,7 @@ run :: Command -> IO ()
 run cmd = case cmd of
   Subtract accuracy p ms o -> withAccuracy accuracy sub (p :| ms) o
   Intersect accuracy is o  -> withAccuracy accuracy intersect is o
+  Xor       accuracy is o  -> withAccuracy accuracy xor is o
   Union     accuracy is o  -> withAccuracy accuracy cat inputs o
    where
     inputs = case is of
