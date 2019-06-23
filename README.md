@@ -104,7 +104,7 @@ Carol Carell
 
 To understand the above:
 
-* `<(cut -f 2 -d ' ' patients)` gets a list of all the patients' last names.
+* `<(cut -f 2 -d ' ' patients)` gets a list of all the patients' last names and creates a virtual file with this list. See [bash process substitution](https://www.tldp.org/LDP/abs/html/process-sub.html).
 * `+<(cut -f 2 -d ' ' patients),patients` constructs a stream where the keys are the last names and the values are the whole names.
 
 `cat` deduplicates by key, so if we see a second (or third, or fourth, etc.) person from a given family we don't print them out.
