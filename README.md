@@ -112,7 +112,7 @@ To understand the above:
 
 #### Patients who have family members with a cold:
 
-```
+```bash
 $ smap int +<(cut -f 2 -d ' ' patients),patients <(cut -f 2 -d ' ' has_cold)
 Bob Smith
 Jane Doe
