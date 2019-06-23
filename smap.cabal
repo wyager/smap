@@ -4,16 +4,16 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d94faaa7fb7c95154b5f4bece0d0ec7987f171f6bb40fc6a7b27ef3d79bde869
+-- hash: 12a1056256277ca6d345e3a6295e985e50acedc0816cbccba7c559ed577594c2
 
 name:           smap
-version:        0.1.0.0
-description:    Please see the README on GitHub at <https://github.com/githubuser/smap#readme>
-homepage:       https://github.com/githubuser/smap#readme
-bug-reports:    https://github.com/githubuser/smap/issues
-author:         Author name here
-maintainer:     example@example.com
-copyright:      2019 Author name here
+version:        0.1.0
+description:    Please see the README on GitHub at <https://github.com/wyager/smap>
+homepage:       https://github.com/wyager/smap#readme
+bug-reports:    https://github.com/wyager/smap/issues
+author:         Will Yager
+maintainer:     will@yager.io
+copyright:      2019 Will Yager
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
@@ -23,7 +23,7 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/githubuser/smap
+  location: https://github.com/wyager/smap
 
 library
   exposed-modules:

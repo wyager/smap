@@ -2,13 +2,19 @@
 
 ## Installation:
 
-Download this repo and run
+To install from Hackage, run:
+
+```bash
+cabal install smap
+```
+
+To install from source, you can use that or download this repo and run
 
 ```bash
 stack install smap
 ```
 
-You will need [stack](https://www.haskellstack.org) if you don't already have it. 
+You will need [cabal](https://www.haskell.org/cabal/) or [stack](https://www.haskellstack.org) if you don't already have one of them. 
 
 ## Tutorial:
 
