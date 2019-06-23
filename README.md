@@ -84,7 +84,7 @@ John Smith
 
 ### Advanced usage (maps)
 
-When using `smap` with sets, the behavior is pretty easy to predict. It gets a bit more complicated when
+When using `smap` with sets, the behavior is pretty straightforward. It gets a bit more complicated when
 dealing with maps.
 
 If you provide `smap` with a filepath, it will construct a map where the keys equal the values. (This
