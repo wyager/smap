@@ -1,63 +1,43 @@
-module Lib
-  ( run
+module Lib (run) where
+
+import Prelude hiding (filter, subtract, init, sin)
+import qualified Data.HashMap.Strict as Map (insert, empty, foldrWithKey, alter)
+import Data.HashMap.Strict as Map (HashMap, member)
+import Data.Hashable (Hashable)
+import Control.Lens.At (at) -- for some strange reason I can't import alterF from Data.HashMap.Strict
+import Data.ByteString.Char8 (ByteString)
+import qualified Data.ByteString.Streaming.Char8 as BS8
+import qualified Streaming.Prelude as P
+import qualified Streaming as S
+import Data.List.NonEmpty (NonEmpty((:|)))
+import Control.Monad (foldM)
+import Control.Monad.Trans.Class (lift)
+import Data.Strict.Tuple (Pair((:!:)))
+import qualified Control.Monad.Trans.Resource as Resource
+import Control.Monad.IO.Class (MonadIO)
+import Crypto.MAC.SipHash (SipKey(..), SipHash(..), hash)
+import Data.Word (Word64)
+import Flags
+  ( Hdl(Std, File)
+  , SetDescriptor(Keyed, UnKeyed)
+  , Command(Union, Subtract, Intersect, Xor)
+  , Accuracy(Approximate, Exact)
   )
-where
 
-import           Prelude       hiding ( filter
-                                      , subtract
-                                      , init
-                                      , sin
-                                      )
-import qualified Data.HashMap.Strict as Map
-                                      ( insert
-                                      , empty
-                                      , foldrWithKey
-                                      , alter
-                                      )
-import           Data.HashMap.Strict as Map
-                                      ( HashMap
-                                      , member
-                                      )
-import           Data.Hashable        ( Hashable )
-import           Control.Lens.At      ( at ) -- for some strange reason I can't import alterF from Data.HashMap.Strict
-import           Data.ByteString.Char8
-                                      ( ByteString )
-import qualified Data.ByteString.Streaming.Char8
-                                     as BS8
-import qualified Streaming.Prelude   as P
-import qualified Streaming           as S
-import           Data.List.NonEmpty   ( NonEmpty((:|)) )
-import           Control.Monad        ( foldM )
-import           Control.Monad.Trans.Class
-                                      ( lift )
-import           Data.Strict.Tuple    ( Pair((:!:)) )
-import qualified Control.Monad.Trans.Resource
-                                     as Resource
-import           Control.Monad.IO.Class
-                                      ( MonadIO )
-import           Crypto.MAC.SipHash   ( SipKey(..)
-                                      , SipHash(..)
-                                      , hash
-                                      )
-import           Data.Word            ( Word64 )
-import           Flags                ( Hdl(Std, File)
-                                      , SetDescriptor(Keyed, UnKeyed)
-                                      , Command(Union, Subtract, Intersect, Xor)
-                                      , Accuracy(Approximate, Exact)
-                                      )
-
-force :: Monad m => P.Stream (BS8.ByteString m) m r -> P.Stream (P.Of ByteString) m r
+force :: Monad m => S.Stream (BS8.ByteString m) m r -> S.Stream (S.Of ByteString) m r
 force = S.mapsM BS8.toStrict
 
-duplicate :: forall a m r . Monad m => P.Stream (P.Of a) m r -> P.Stream (P.Of (Pair a a)) m r
+duplicate :: forall a m . Monad m => S.Stream (S.Of a) m () -> Stream m a a
 duplicate = P.map (\x -> x :!: x)
 
+
+type Stream m k v = S.Stream (S.Of (Pair k v)) m ()
 
 type SetOperation f
   =  forall k
    . (Hashable k, Eq k)
-  => f (S.Stream (S.Of (Pair k ByteString)) (Resource.ResourceT IO) ()) -- Input maps
-  -> S.Stream (S.Of (Pair k ByteString)) (Resource.ResourceT IO) () -- Output map
+  => f (Stream (Resource.ResourceT IO) k ByteString) -- Input maps
+  -> Stream (Resource.ResourceT IO) k ByteString -- Output map
 
 cat :: SetOperation []
 cat streams = foldM filter Map.empty streams *> return ()
@@ -102,8 +82,7 @@ xor = go Map.empty
     where toggle hm (k :!: v) = Map.alter (maybe (Just v) (const Nothing)) k hm
 
 
-keyMap
-  :: Monad m => (k1 -> k2) -> P.Stream (P.Of (Pair k1 v)) m () -> P.Stream (P.Of (Pair k2 v)) m ()
+keyMap :: Monad m => (k1 -> k2) -> Stream m k1 v -> Stream m k2 v
 keyMap f = P.map (\(k :!: v) -> (f k :!: v))
 
 sip :: SipKey -> ByteString -> Word64
@@ -113,21 +92,19 @@ hin :: (MonadIO m, Resource.MonadResource m) => Hdl -> BS8.ByteString m ()
 hin Std         = BS8.stdin
 hin (File path) = BS8.readFile path
 
+sin :: (MonadIO m, Resource.MonadResource m) => SetDescriptor -> Stream m ByteString ByteString
+sin (UnKeyed hdl  ) = duplicate $ force $ BS8.lines $ hin hdl
+sin (Keyed hks hvs) = S.zipsWith'
+  (\q (k P.:> ks) (v P.:> vs) -> (k :!: v) P.:> (q ks vs))
+  (f hks)
+  (f hvs)
+  where f = force . BS8.lines . hin
+
 hout :: (MonadIO m, Resource.MonadResource m) => Hdl -> BS8.ByteString m a -> m a
 hout Std         = BS8.stdout
 hout (File path) = BS8.writeFile path
 
-sin
-  :: (MonadIO m, Resource.MonadResource m)
-  => SetDescriptor
-  -> P.Stream (P.Of (Pair ByteString ByteString)) m ()
-sin (UnKeyed hdl  ) = duplicate $ force $ BS8.lines $ hin hdl
-sin (Keyed hks hvs) = S.zipsWith' (\q (k P.:> ks) (v P.:> vs) -> (k :!: v) P.:> (q ks vs))
-                                  (f hks)
-                                  (f hvs)
-  where f = force . BS8.lines . hin
-
-format :: Monad m => P.Stream (P.Of (Pair k ByteString)) m a -> BS8.ByteString m a
+format :: Monad m => Stream m k ByteString -> BS8.ByteString m ()
 format = BS8.unlines . S.maps (\((_k :!: v) P.:> r) -> BS8.fromStrict v >> return r)
 
 run :: Command -> IO ()
@@ -141,8 +118,10 @@ run cmd = case cmd of
       [] -> [UnKeyed Std]
       xs -> xs
  where
-  withAccuracy accuracy (g :: SetOperation f) i o = case accuracy of
+  withAccuracy accuracy (op :: SetOperation someFunctor) inputs output = case accuracy of
     Exact           -> approximateWith id
     Approximate key -> approximateWith (sip key)
-    where approximateWith f = Resource.runResourceT $ hout o $ format $ g $ fmap (keyMap f . sin) i
+   where
+    approximateWith approximator =
+      Resource.runResourceT $ hout output $ format $ op $ fmap (keyMap approximator . sin) inputs
 
