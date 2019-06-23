@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 12a1056256277ca6d345e3a6295e985e50acedc0816cbccba7c559ed577594c2
+-- hash: df598e0d1580d91881b1f51a35f3798720938fa33ec5d6ec2e4f4192d6635f43
 
 name:           smap
 version:        0.1.0
@@ -27,8 +27,8 @@ source-repository head
 
 library
   exposed-modules:
-      Flags
-      Lib
+      Smap.Commands
+      Smap.Flags
   other-modules:
       Paths_smap
   hs-source-dirs:
@@ -40,7 +40,6 @@ library
     , base >=4.7 && <5
     , bytestring
     , hashable
-    , lens
     , optparse-applicative
     , resourcet
     , siphash
@@ -66,7 +65,6 @@ executable smap
     , base >=4.7 && <5
     , bytestring
     , hashable
-    , lens
     , optparse-applicative
     , resourcet
     , siphash
@@ -94,7 +92,6 @@ test-suite smap-test
     , base >=4.7 && <5
     , bytestring
     , hashable
-    , lens
     , optparse-applicative
     , resourcet
     , siphash

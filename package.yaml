@@ -32,7 +32,6 @@ dependencies:
 - resourcet
 - optparse-applicative
 - transformers
-- lens
 - strict
 - text
 - siphash
