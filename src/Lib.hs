@@ -9,7 +9,6 @@ import Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Streaming.Char8 as BS8
 import qualified Streaming.Prelude as P
 import qualified Streaming as S
-import Data.List.NonEmpty (NonEmpty((:|)))
 import Control.Monad (foldM)
 import Control.Monad.Trans.Class (lift)
 import Data.Strict.Tuple (Pair((:!:)))
@@ -30,16 +29,15 @@ force = S.mapsM BS8.toStrict
 duplicate :: forall a m . Monad m => S.Stream (S.Of a) m () -> Stream m a a
 duplicate = P.map (\x -> x :!: x)
 
-
 type Stream m k v = S.Stream (S.Of (Pair k v)) m ()
 
-type SetOperation f
+type SetOperation
   =  forall k
    . (Hashable k, Eq k)
-  => f (Stream (Resource.ResourceT IO) k ByteString) -- Input maps
+  => [Stream (Resource.ResourceT IO) k ByteString] -- Input maps
   -> Stream (Resource.ResourceT IO) k ByteString -- Output map
 
-cat :: SetOperation []
+cat :: SetOperation
 cat streams = foldM filter Map.empty streams *> return ()
  where
   filter seen = P.foldM_ filter' (return seen) return . S.hoist lift
@@ -50,29 +48,22 @@ cat streams = foldM filter Map.empty streams *> return ()
     insert Nothing   = Just (Just ())
     insert (Just ()) = Nothing
 
-sub :: SetOperation NonEmpty
-sub (pos :| negs) = do
-  subtract <- lift $ gathers negs
-  P.filter (\(k :!: _) -> not (k `member` subtract)) pos
+filterFirstSetWith :: (Bool -> Bool) -> SetOperation
+filterFirstSetWith _                []           = return ()
+filterFirstSetWith includeIfPresent (first : seconds) = do
+  subtract <- lift $ collects seconds
+  P.filter (\(k :!: _) -> includeIfPresent (k `member` subtract)) first
  where
-  gathers = foldM gather Map.empty
-  gather subs = P.fold_ (\s (k :!: _) -> Map.insert k () s) subs id
+  collects = foldM collect Map.empty
+  collect subs = P.fold_ (\s (k :!: _) -> Map.insert k () s) subs id
 
-intersect :: SetOperation []
-intersect []           = return ()
-intersect [x         ] = x
-intersect (x : y : zs) = do
-  init <- lift $ collapse x
-  go init y zs
- where
-  collapse = P.fold_ (\hm (k :!: v) -> Map.insert k v hm) Map.empty id
-  eliminate hm = P.filter (\(k :!: _) -> k `member` hm)
-  go hm s []       = eliminate hm s
-  go hm s (t : ts) = do
-    hm' <- lift $ collapse $ eliminate hm s
-    go hm' t ts
+sub :: SetOperation
+sub = filterFirstSetWith not
 
-xor :: SetOperation []
+intersect :: SetOperation
+intersect = filterFirstSetWith id
+
+xor :: SetOperation
 xor = go Map.empty
  where
   go parity []       = Map.foldrWithKey (\k v -> (P.yield (k :!: v) >>)) (return ()) parity
@@ -109,7 +100,7 @@ format = BS8.unlines . S.maps (\((_k :!: v) P.:> r) -> BS8.fromStrict v >> retur
 
 run :: Command -> IO ()
 run cmd = case cmd of
-  Subtract accuracy p ms o -> withAccuracy accuracy sub (p :| ms) o
+  Subtract accuracy p ms o -> withAccuracy accuracy sub (p : ms) o
   Intersect accuracy is o  -> withAccuracy accuracy intersect is o
   Xor       accuracy is o  -> withAccuracy accuracy xor is o
   Union     accuracy is o  -> withAccuracy accuracy cat inputs o
@@ -118,7 +109,7 @@ run cmd = case cmd of
       [] -> [UnKeyed Std]
       xs -> xs
  where
-  withAccuracy accuracy (op :: SetOperation someFunctor) inputs output = case accuracy of
+  withAccuracy accuracy (op :: SetOperation) inputs output = case accuracy of
     Exact           -> approximateWith id
     Approximate key -> approximateWith (sip key)
    where

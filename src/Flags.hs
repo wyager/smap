@@ -79,7 +79,6 @@ accuracy = approx <|> exact
     )
   exact = pure Exact
 
-
 catCommand :: O.Mod O.CommandFields Command
 catCommand = O.command "cat" $ O.info
   (value O.<**> O.helper)
@@ -111,7 +110,6 @@ intersectCommand = O.command "int" $ O.info
   )
   where value = Intersect <$> accuracy <*> inFiles <*> outHdl
 
-
 xorCommand :: O.Mod O.CommandFields Command
 xorCommand = O.command "xor" $ O.info
   (value O.<**> O.helper)
@@ -125,10 +123,9 @@ xorCommand = O.command "xor" $ O.info
   )
   where value = Xor <$> accuracy <*> inFiles <*> outHdl
 
-
 command :: IO Command
 command = O.execParser
   (O.info
     ((O.subparser (catCommand <> subCommand <> intersectCommand <> xorCommand)) O.<**> O.helper)
-    O.fullDesc
+    (O.fullDesc <> O.progDesc "Use -h for help. Available commands: cat, sub, int, xor.")
   )

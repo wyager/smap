@@ -51,7 +51,7 @@ library:
   - -fexpose-all-unfoldings
 
 executables:
-  smap-exe:
+  smap:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
