@@ -1,5 +1,15 @@
 # smap - a command line tool for sets and maps
 
+## Installation:
+
+Download this repo and run
+
+```bash
+stack install smap
+```
+
+You will need [stack](https://www.haskellstack.org) if you don't already have it. 
+
 ## Tutorial:
 
 The setup:
