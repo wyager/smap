@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: df598e0d1580d91881b1f51a35f3798720938fa33ec5d6ec2e4f4192d6635f43
+-- hash: 25d9063a89c0a5c6779a268eb09c75c2be28aa805c3be51ead5e5602dc0d06cd
 
 name:           smap
 version:        0.1.0
@@ -34,7 +34,7 @@ library
   hs-source-dirs:
       src
   default-extensions: TupleSections RankNTypes ScopedTypeVariables LambdaCase BangPatterns
-  ghc-options: -O2 -Wall -fexpose-all-unfoldings
+  ghc-options: -O2 -Wall -fexpose-all-unfoldings -optP-Wno-nonportable-include-path
   build-depends:
       attoparsec
     , base >=4.7 && <5
@@ -44,7 +44,6 @@ library
     , resourcet
     , siphash
     , streaming
-    , streaming-attoparsec
     , streaming-bytestring
     , strict
     , text
@@ -59,7 +58,7 @@ executable smap
   hs-source-dirs:
       app
   default-extensions: TupleSections RankNTypes ScopedTypeVariables LambdaCase BangPatterns
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -O2 -fspecialize-aggressively
+  ghc-options: -rtsopts -Wall -O2 -fspecialize-aggressively -optP-Wno-nonportable-include-path
   build-depends:
       attoparsec
     , base >=4.7 && <5
@@ -70,7 +69,6 @@ executable smap
     , siphash
     , smap
     , streaming
-    , streaming-attoparsec
     , streaming-bytestring
     , strict
     , text
@@ -86,7 +84,7 @@ test-suite smap-test
   hs-source-dirs:
       test
   default-extensions: TupleSections RankNTypes ScopedTypeVariables LambdaCase BangPatterns
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -rtsopts
   build-depends:
       attoparsec
     , base >=4.7 && <5
@@ -97,7 +95,6 @@ test-suite smap-test
     , siphash
     , smap
     , streaming
-    , streaming-attoparsec
     , streaming-bytestring
     , strict
     , text
