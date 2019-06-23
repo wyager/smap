@@ -142,3 +142,9 @@ To understand the above:
 * `<(cut -f 2 -d ' ' has_cold)` gets a list of family names of everyone who has a cold.
 
 So `int` is filtering the first argument (treated as a `key,value` stream) by the keys present in the second argument.
+
+### Approximate mode
+
+If you're processing lots of lines and running up against memory limits, 
+you can use the `--approximate` option to keep track of a 64-bit hash 
+of each line instead of the entire line.
