@@ -4,12 +4,12 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f9b3c8428fd796fc574a982c19dc5a090f0a419b37f6c465b3466cea621b02fc
+-- hash: 310f816dac98fb2a685521652dc3075b92400009bd4a6c25c01472ae58feccd2
 
 name:           smap
 version:        0.1.0
 synopsis:       A command line tool for working with sets and maps
-description:    Please see the README on GitHub at <https://github.com/wyager/smap>
+description:    Please see the README on GitHub below or at <https://github.com/wyager/smap>
 category:       Text
 homepage:       https://github.com/wyager/smap#readme
 bug-reports:    https://github.com/wyager/smap/issues
@@ -35,7 +35,7 @@ library
       Paths_smap
   hs-source-dirs:
       src
-  default-extensions: TupleSections RankNTypes ScopedTypeVariables LambdaCase BangPatterns
+  default-extensions: TupleSections RankNTypes ScopedTypeVariables LambdaCase BangPatterns KindSignatures DataKinds
   ghc-options: -O2 -Wall -fexpose-all-unfoldings -optP-Wno-nonportable-include-path
   build-depends:
       attoparsec
@@ -59,7 +59,7 @@ executable smap
       Paths_smap
   hs-source-dirs:
       app
-  default-extensions: TupleSections RankNTypes ScopedTypeVariables LambdaCase BangPatterns
+  default-extensions: TupleSections RankNTypes ScopedTypeVariables LambdaCase BangPatterns KindSignatures DataKinds
   ghc-options: -rtsopts -Wall -O2 -fspecialize-aggressively -optP-Wno-nonportable-include-path
   build-depends:
       attoparsec
@@ -85,7 +85,7 @@ test-suite smap-test
       Paths_smap
   hs-source-dirs:
       test
-  default-extensions: TupleSections RankNTypes ScopedTypeVariables LambdaCase BangPatterns
+  default-extensions: TupleSections RankNTypes ScopedTypeVariables LambdaCase BangPatterns KindSignatures DataKinds
   ghc-options: -rtsopts
   build-depends:
       attoparsec

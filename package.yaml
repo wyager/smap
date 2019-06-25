@@ -21,6 +21,8 @@ default-extensions:
 - ScopedTypeVariables
 - LambdaCase
 - BangPatterns
+- KindSignatures
+- DataKinds
 
 dependencies:
 - base >= 4.7 && < 5
