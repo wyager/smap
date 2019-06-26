@@ -13,7 +13,6 @@ import Control.Monad.Trans.Class (lift)
 import Data.Strict.Tuple (Pair((:!:)))
 import Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Control.Monad.Trans.Resource as Resource
-import Control.Monad.IO.Class (MonadIO)
 import Crypto.MAC.SipHash (SipHash(..), hash)
 import Smap.Flags
   ( Hdl(Std, File)
@@ -24,11 +23,13 @@ import Smap.Flags
 
 type Stream m k v = S.Stream (S.Of (Pair k v)) m ()
 
+type RIO = Resource.ResourceT IO
+
 type SetOperation
   =  forall key
    . (Hashable key, Eq key)
-  => NonEmpty (Stream (Resource.ResourceT IO) key ByteString) -- Input maps
-  -> Stream (Resource.ResourceT IO) key ByteString -- Output map
+  => NonEmpty (Stream RIO key ByteString) -- Input maps
+  -> Stream RIO key ByteString -- Output map
 
 cat :: SetOperation
 cat streams = foldM filter Map.empty streams *> return ()
@@ -53,7 +54,7 @@ sub = filterStreamWith not
 int :: SetOperation
 int = filterStreamWith id
 
-load :: (MonadIO m, Resource.MonadResource m) => Descriptor ty -> Stream m ByteString ByteString
+load :: Descriptor ty -> Stream RIO ByteString ByteString
 load descriptor = case descriptor of
   UnKeyed hdl       -> P.map (\x -> x :!: x) (linesOf hdl)
   Keyed keys values -> S.zipsWith'
@@ -68,7 +69,7 @@ load descriptor = case descriptor of
 withAccuracy
   :: Accuracy
   -> SetOperation
-  -> NonEmpty (Stream (Resource.ResourceT IO) ByteString ByteString)
+  -> NonEmpty (Stream RIO ByteString ByteString)
   -> Hdl
   -> IO ()
 withAccuracy accuracy op inputs output = case accuracy of

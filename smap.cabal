@@ -4,12 +4,12 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: db4e5b07ac8350e9046998e591625af97e33131e0c2b52007a60ad66cb2f65a6
+-- hash: 55e2b53f48431c3db97e3ebe8f47813ebd7708965b561aaa96b836e9cb698939
 
 name:           smap
-version:        0.2.0
+version:        0.3.0
 synopsis:       A command line tool for working with sets and maps
-description:    Please see the README on GitHub below or at <https://github.com/wyager/smap>
+description:    Please see the README below or on GitHub at <https://github.com/wyager/smap>
 category:       Text
 homepage:       https://github.com/wyager/smap#readme
 bug-reports:    https://github.com/wyager/smap/issues
