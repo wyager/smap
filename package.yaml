@@ -1,5 +1,5 @@
 name:                smap
-version:             0.2.0
+version:             0.3.0
 github:              "wyager/smap"
 license:             BSD3
 author:              "Will Yager"
@@ -13,7 +13,7 @@ extra-source-files:
 - ChangeLog.md
 
 
-description:         Please see the README on GitHub below or at <https://github.com/wyager/smap>
+description:         Please see the README below or on GitHub at <https://github.com/wyager/smap>
 
 default-extensions:
 - TupleSections
