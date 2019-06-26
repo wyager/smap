@@ -88,15 +88,19 @@ $ smap int has_cold has_mumps
 Jane Doe
 ```
 
-#### xor - Symmetric difference
+It's worth noting that both **int** and **sub** treat their first argument as a *stream*, not a *set*. This means that they won't deduplicate values from their first argument. In practice you will find that this is the most useful arrangement. You can always use `smap cat` to turn a stream into a set.
 
-Patients who only have a cold or mumps, but not both:
+
+To put this all together, let's find patients who only have a cold or mumps, but not both:
 
 ```bash
-$ smap xor has_cold has_mumps
+$ smap sub <(smap cat has_cold has_mumps) <(smap int has_cold has_mumps)
 Carol Carell
 John Smith
 ```
+
+
+If you haven't seen the `<(command)` syntax before, it's a very useful shell tool called [process substitution](https://www.tldp.org/LDP/abs/html/process-sub.html).
 
 ### Advanced usage (maps)
 
@@ -120,7 +124,7 @@ Carol Carell
 
 To understand the above:
 
-* `<(cut -f 2 -d ' ' patients)` gets a list of all the patients' last names and creates a virtual file with this list. See [bash process substitution](https://www.tldp.org/LDP/abs/html/process-sub.html).
+* `<(cut -f 2 -d ' ' patients)` gets a list of all the patients' last names and creates a pipe containing this list. 
 * `+<(cut -f 2 -d ' ' patients),patients` constructs a stream where the keys are the last names and the values are the whole names.
 
 `cat` deduplicates by key, so if we see a second (or third, or fourth, etc.) person from a given family we don't print them out.
@@ -146,5 +150,6 @@ So `int` is filtering the first argument (treated as a `key,value` stream) by th
 ### Approximate mode
 
 If you're processing lots of lines and running up against memory limits, 
-you can use the `--approximate` option to keep track of a 64-bit hash 
-of each line instead of the entire line.
+you can use the `--approximate` or `-a` option to keep track of a 64-bit hash 
+of each line instead of the entire line. You can also use 
+`--approx-with-key` or `-k` if you want to specify the SipHash key.
