@@ -50,8 +50,8 @@ filterStreamWith includeIfPresent (first :| seconds) = do
 sub :: SetOperation
 sub = filterStreamWith not
 
-intersect :: SetOperation
-intersect = filterStreamWith id
+int :: SetOperation
+int = filterStreamWith id
 
 load :: (MonadIO m, Resource.MonadResource m) => Descriptor ty -> Stream m ByteString ByteString
 load descriptor = case descriptor of
@@ -65,24 +65,30 @@ load descriptor = case descriptor of
   hin Std         = BS8.stdin
   hin (File path) = BS8.readFile path
 
+withAccuracy
+  :: Accuracy
+  -> SetOperation
+  -> NonEmpty (Stream (Resource.ResourceT IO) ByteString ByteString)
+  -> Hdl
+  -> IO ()
+withAccuracy accuracy op inputs output = case accuracy of
+  Exact           -> approximateWith id
+  Approximate key -> approximateWith (sip key)
+ where
+  format = BS8.unlines . S.maps (\((_k :!: v) P.:> r) -> BS8.fromStrict v >> return r)
+  hout Std         = BS8.stdout
+  hout (File path) = BS8.writeFile path
+  sip key bs = let SipHash h = hash key bs in h
+  keyMap f = P.map (\(k :!: v) -> (f k :!: v))
+  approximateWith approximator =
+    Resource.runResourceT $ hout output $ format $ op $ fmap (keyMap approximator) inputs
+
 run :: Command -> IO ()
 run cmd = case cmd of
-  Subtract  accuracy p ms o -> withAccuracy accuracy sub (load p :| fmap load ms) o
-  Intersect accuracy i is o -> withAccuracy accuracy intersect (load i :| fmap load is) o
-  Union accuracy is o       -> withAccuracy accuracy cat (fmap load inputs) o
+  Subtract  acc p ms o -> withAccuracy acc sub (load p :| fmap load ms) o
+  Intersect acc i is o -> withAccuracy acc int (load i :| fmap load is) o
+  Union acc is o       -> withAccuracy acc cat (fmap load inputs) o
    where
     inputs = case is of
       []       -> UnKeyed Std :| []
       (x : xs) -> x :| xs
- where
-  withAccuracy accuracy (op :: SetOperation) inputs output = case accuracy of
-    Exact           -> approximateWith id
-    Approximate key -> approximateWith (sip key)
-   where
-    format = BS8.unlines . S.maps (\((_k :!: v) P.:> r) -> BS8.fromStrict v >> return r)
-    hout Std         = BS8.stdout
-    hout (File path) = BS8.writeFile path
-    sip key bs = let SipHash h = hash key bs in h
-    keyMap f = P.map (\(k :!: v) -> (f k :!: v))
-    approximateWith approximator =
-      Resource.runResourceT $ hout output $ format $ op $ fmap (keyMap approximator) inputs
