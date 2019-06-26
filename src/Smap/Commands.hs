@@ -67,19 +67,14 @@ load descriptor = case descriptor of
   hin (File path) = BS8.readFile path
 
 withAccuracy
-  :: Accuracy
-  -> SetOperation
-  -> NonEmpty (Stream RIO ByteString ByteString)
-  -> Hdl
-  -> IO ()
+  :: Accuracy -> SetOperation -> NonEmpty (Stream RIO ByteString ByteString) -> Hdl -> IO ()
 withAccuracy accuracy op inputs output = case accuracy of
   Exact           -> approximateWith id
-  Approximate key -> approximateWith (sip key)
+  Approximate key -> approximateWith (\bs -> let SipHash h = hash key bs in h)
  where
   format = BS8.unlines . S.maps (\((_k :!: v) P.:> r) -> BS8.fromStrict v >> return r)
   hout Std         = BS8.stdout
   hout (File path) = BS8.writeFile path
-  sip key bs = let SipHash h = hash key bs in h
   keyMap f = P.map (\(k :!: v) -> (f k :!: v))
   approximateWith approximator =
     Resource.runResourceT $ hout output $ format $ op $ fmap (keyMap approximator) inputs
