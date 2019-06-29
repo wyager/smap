@@ -118,7 +118,7 @@ subCommand = O.command "sub" $ O.info
   (O.fullDesc <> O.progDesc
     (concat
       [ "Set subtraction. "
-      , "Given stream A and sets B,C,..., output values in A but not in B,C,... "
+      , "Given stream A and sets B,C,..., output values in A but not in any of B,C,... "
       , "Does not deduplicate values from A."
       ]
     )
@@ -132,7 +132,7 @@ intersectCommand = O.command "int" $ O.info
     (concat
       [ "Set intersection. "
       , "Given stream A and sets B,C,..., output values in A "
-      , "only if they are in at least one of B,C,... "
+      , "only if they are in all of of B,C,... "
       , "Does not deduplicate values from A."
       ]
     )

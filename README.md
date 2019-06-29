@@ -183,11 +183,13 @@ John Smith
 
 Then, we have a second invocation of `smap int` which is reading these key/value pairs in from stdin and intersecting them with the set of families where someone has mumps.
 
-
-
 ### Approximate mode
 
 If you're processing lots of lines and running up against memory limits, 
 you can use the `--approximate` or `-a` option to keep track of a 64-bit hash 
 of each line instead of the entire line. You can also use 
 `--approx-with-key` or `-k` if you want to specify the SipHash key.
+
+### Performance
+
+It's pretty fast. On my laptop, I can churn through 1.something million lines per second for short lines and a few hundred megabytes per second on long lines. I'll run out of RAM before I run out of time. Of course, faster is better, so please feel free to open an issue/PR with suggestions.
