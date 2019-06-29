@@ -3,7 +3,7 @@
 module Smap.Flags
   ( Hdl(Std, File)
   , Descriptor(Separate, UnKeyed, Interleaved)
-  , InputType(Set, Stream)
+  , FileType(Set, Stream)
   , Command(Union, Subtract, Intersect)
   , Accuracy(Approximate, Exact)
   , command
@@ -20,10 +20,10 @@ data Hdl = Std -- stdin/stdout
          | File FilePath
 
 -- Just to help us keep track of how a descriptor is used
-data InputType = Set -- Duplicates are discarded
-               | Stream -- Duplicates are not discarded
+data FileType = Set -- Duplicates are discarded
+              | Stream -- Duplicates are not discarded
 
-data Descriptor (ty :: InputType)
+data Descriptor (ty :: FileType)
    = Separate Hdl Hdl -- Keys are in the first file, values in the second (map behavior)
    | Interleaved Hdl -- Keys and values are on separate lines in the same file
    | UnKeyed Hdl -- key = value (set behavior)
