@@ -1,6 +1,6 @@
 # smap - a command line tool for sets and maps
 
-This is a very minimal but powerful tool for performing union, subtraction, and intersection on sets and maps. If you often find yourself using commands like `sort`, `uniq`, `comm`, and really contorted `sed`/`awk` commands, this tool will probably help you. It's faster, simpler to remember, and doesn't require lexicographic ordering.
+This is a very minimal but powerful tool for performing set/map union, subtraction, and intersection on text files. If you often find yourself using commands like `sort`, `uniq`, `comm`, and really contorted `sed`/`awk` invocations, this tool will probably help you. It's faster, simpler to remember, and doesn't require lexicographic ordering.
 
 ## Installation:
 
@@ -71,6 +71,8 @@ Jane Doe
 John Smith
 Carol Carell
 ```
+
+By default, output goes to stdout, but you can send it elsewhere with `-o`. (This also works for any command.)
 
 #### sub - Set subtraction
 
@@ -194,4 +196,4 @@ of each line instead of the entire line. You can also use
 
 ### Performance
 
-It's pretty fast. On my laptop, I can churn through 1.something million lines per second for short lines and a few hundred megabytes per second on long lines. I'll run out of RAM before I run out of time. Of course, faster is better, so please feel free to open an issue/PR with suggestions.
+It's pretty fast. On my laptop, I can churn through 1.something million lines per second for short lines and a few hundred megabytes per second on long lines. I'll probably run out of RAM before I run out of time. Of course, faster is better, so please feel free to open an issue/PR with suggestions.
