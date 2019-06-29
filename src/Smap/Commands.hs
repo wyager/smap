@@ -14,11 +14,11 @@ import Data.Strict.Tuple (Pair((:!:)))
 import Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Control.Monad.Trans.Resource as Resource
 import Crypto.MAC.SipHash (SipHash(..), hash)
-import Data.ByteString.Builder (word64Dec, toLazyByteString)
+import Data.ByteString.Builder (word64HexFixed, toLazyByteString)
 import Data.ByteString.Lazy (toStrict)
 import Smap.Flags
   ( Hdl(Std, File)
-  , Descriptor(Keyed, UnKeyed)
+  , Descriptor(Separate, UnKeyed, Interleaved)
   , Command(Union, Subtract, Intersect)
   , Accuracy(Approximate, Exact)
   )
@@ -56,10 +56,32 @@ sub = filterStreamWith not
 int :: SetOperation
 int = filterStreamWith id
 
+deinterleave :: Monad m => S.Stream (S.Of a) m r -> S.Stream (S.Of (Pair a a)) m r
+deinterleave = fmap P.snd' . P.foldM step (return Nothing) return . hoist lift
+ where
+  step Nothing  a = return (Just a)
+  step (Just a) b = P.yield (a :!: b) >> return Nothing
+
+-- Outputs the keys to one file and values to the other (simultaneously)
+splitWith
+  :: (Pair k ByteString -> P.Stream (P.Of (Either ByteString ByteString)) RIO ())
+  -> Hdl
+  -> Hdl
+  -> Stream RIO k ByteString
+  -> RIO ()
+splitWith split kFile vFile = hout kFile . hout vFile . hoist unlinify . unlinify . separate
+ where
+  hout Std         = BS8.stdout
+  hout (File path) = BS8.writeFile path
+  separate paired = P.partitionEithers $ P.for paired split
+  unlinify :: Monad n => S.Stream (S.Of ByteString) n x -> BS8.ByteString n x
+  unlinify = BS8.unlines . S.maps (\(b P.:> r) -> BS8.fromStrict b >> return r)
+
 load :: Descriptor ty -> Stream RIO ByteString ByteString
 load descriptor = case descriptor of
-  UnKeyed hdl       -> P.map (\x -> x :!: x) (linesOf hdl)
-  Keyed keys values -> S.zipsWith'
+  UnKeyed     hdl      -> P.map (\x -> x :!: x) (linesOf hdl)
+  Interleaved hdl      -> deinterleave (linesOf hdl)
+  Separate keys values -> S.zipsWith'
     (\q (k P.:> ks) (v P.:> vs) -> (k :!: v) P.:> (q ks vs))
     (linesOf keys)
     (linesOf values)
@@ -69,29 +91,27 @@ load descriptor = case descriptor of
   hin (File path) = BS8.readFile path
 
 withAccuracy
-  :: Accuracy -> SetOperation -> NonEmpty (Stream RIO ByteString ByteString) -> Descriptor a -> IO ()
+  :: Accuracy
+  -> SetOperation
+  -> NonEmpty (Stream RIO ByteString ByteString)
+  -> Descriptor out
+  -> IO ()
 withAccuracy accuracy op inputs output = case accuracy of
   Exact           -> approximateWith id id
-  Approximate key -> approximateWith (\bs -> let SipHash h = hash key bs in h) (toStrict . toLazyByteString . word64Dec)
+  Approximate key -> approximateWith
+    (\bs -> let SipHash h = hash key bs in h)
+    (toStrict . toLazyByteString . word64HexFixed)
  where
-  valuesOnly = \(_k :!: v) -> P.yield (Right v)
-  separateFiles k2bs = \(k :!: v) -> P.yield (Left (k2bs k)) >> P.yield (Right v)
-  hout approxToBS = case output of
-    UnKeyed hdl         -> splitWith valuesOnly hdl hdl
-    Keyed l r -> splitWith (separateFiles approxToBS) l r 
+  valuesOnly (_k :!: v) = P.yield (Right v)
+  separateFiles k2bs (k :!: v) = P.yield (Left (k2bs k)) >> P.yield (Right v)
+  sameFile k2bs (k :!: v) = P.yield (Right (k2bs k)) >> P.yield (Right v)
+  outputUsing k2bs = case output of
+    UnKeyed     hdl -> splitWith valuesOnly hdl hdl
+    Interleaved hdl -> splitWith (sameFile k2bs) hdl hdl
+    Separate l r    -> splitWith (separateFiles k2bs) l r
   keyMap f = P.map (\(k :!: v) -> (f k :!: v))
-  approximateWith approximator approxToBS =
-    Resource.runResourceT $ hout approxToBS $ op $ fmap (keyMap approximator) inputs
-
--- Outputs the keys to one file and values to the other (simultaneously)
-splitWith :: (Pair k ByteString -> P.Stream (P.Of (Either ByteString ByteString)) RIO ()) -> Hdl -> Hdl -> Stream RIO k ByteString -> RIO ()
-splitWith split kFile vFile = hout kFile . hout vFile . hoist unlinify . unlinify . separate
-  where
-  hout Std         = BS8.stdout
-  hout (File path) = BS8.writeFile path
-  separate paired = P.partitionEithers $ P.for paired $ split
-  unlinify :: Monad n => S.Stream (S.Of ByteString) n x -> BS8.ByteString n x
-  unlinify = BS8.unlines . S.maps (\(b P.:> r) -> BS8.fromStrict b >> return r)
+  approximateWith approximator k2bs =
+    Resource.runResourceT $ outputUsing k2bs $ op $ fmap (keyMap approximator) inputs
 
 run :: Command -> IO ()
 run cmd = case cmd of

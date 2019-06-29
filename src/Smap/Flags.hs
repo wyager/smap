@@ -2,7 +2,7 @@
 
 module Smap.Flags
   ( Hdl(Std, File)
-  , Descriptor(Keyed, UnKeyed)
+  , Descriptor(Separate, UnKeyed, Interleaved)
   , InputType(Set, Stream)
   , Command(Union, Subtract, Intersect)
   , Accuracy(Approximate, Exact)
@@ -24,7 +24,8 @@ data InputType = Set -- Duplicates are discarded
                | Stream -- Duplicates are not discarded
 
 data Descriptor (ty :: InputType)
-   = Keyed Hdl Hdl -- Keys are in the first file, values in the second (map behavior)
+   = Separate Hdl Hdl -- Keys are in the first file, values in the second (map behavior)
+   | Interleaved Hdl -- Keys and values are on separate lines in the same file
    | UnKeyed Hdl -- key = value (set behavior)
 
 data Accuracy = Approximate SipKey -- Don't keep the actual value as a key, just its hash
@@ -42,7 +43,7 @@ hdl = stdin <|> path
 
 descriptor :: A.Parser (Descriptor ty)
 descriptor =
-  (keyed <|> unkeyed)
+  (keyed <|> interleaved <|> unkeyed)
     <*    (A.endOfInput A.<?> "more filepath characters than expected")
     A.<?> "Could not parse filepath"
  where
@@ -52,35 +53,37 @@ descriptor =
     k <- hdl
     _ <- A.char ','
     v <- hdl
-    return (Keyed k v)
+    return (Separate k v)
+  interleaved = Interleaved <$> (A.char '@' *> hdl)
 
 
 aToO :: A.Parser a -> O.ReadM a
 aToO p = O.eitherReader (A.parseOnly p . Text.pack)
 
+argDescription :: String
+argDescription =
+  "Use '-' for stdin/out. Use +keyfile,valfile for separate keys and values. Use @file for keys and values on alternating lines."
+
 stream :: O.Parser (Descriptor 'Stream)
 stream = O.argument
   (aToO descriptor)
-  (O.metavar "STREAM" <> O.help
-    "Stream source file. Use '-' for stdin. Use +keyfile,valfile for separate keys and values."
-  )
+  (O.metavar "STREAM" <> O.help ("Stream source file. " ++ argDescription))
 
 output :: O.Parser (Descriptor a)
-output = O.option
-  (aToO descriptor)
-  (O.metavar "OUTPUT" <> O.help
-    "Output file(s). Use '-' for stdout. Use +keyfile,valfile for separate keys and values. Defaults to stdout"
-    <> O.short 'o'
-    <> O.long "output"
-  ) <|> pure (UnKeyed Std)
+output =
+  O.option
+      (aToO descriptor)
+      (  O.metavar "OUTPUT"
+      <> O.help ("Output file(s). Defaults to stdout. " ++ argDescription)
+      <> O.short 'o'
+      <> O.long "output"
+      )
+    <|> pure (UnKeyed Std)
 
 sets :: O.Parser [Descriptor 'Set]
 sets = many $ O.argument
   (aToO descriptor)
-  (  O.metavar "SET*"
-  <> O.help
-       "Set/map source files (0 or more). Use '-' for stdin. Use +keyfile,valfile for separate keys and values."
-  )
+  (O.metavar "SET*" <> O.help ("Set/map source files (0 or more). " ++ argDescription))
 
 accuracy :: O.Parser Accuracy
 accuracy = approx <|> approxWithKey <|> exact
