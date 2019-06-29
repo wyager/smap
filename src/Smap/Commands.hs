@@ -42,29 +42,20 @@ cat streams = foldM filter Map.empty streams *> return ()
     then return seen
     else P.yield (bs :!: v) >> return (Map.insert bs () seen)
 
--- filterStreamWith :: (Bool -> Bool) -> (forall k . (Eq k, Hashable k) => k -> HashMap k () -> HashMap k ()) -> SetOperation
--- filterStreamWith includeIfPresent update (first :| seconds) = do
---   second <- lift $ collects seconds
---   P.filter (\(k :!: _) -> includeIfPresent (k `Map.member` second)) first
---  where
---   collects xs= collect 
---   collect subs = P.fold_ (\s (k :!: _) -> update k s) subs id
-
 sub :: SetOperation
 sub (first :| seconds) = do
   subs <- lift $ foldM collect Map.empty seconds
   P.filter (\(k :!: _) -> not (k `Map.member` subs)) first
-  where
-  collect subs = P.fold_ (\s (k :!: _) -> Map.insert k () s) subs id
+  where collect subs = P.fold_ (\s (k :!: _) -> Map.insert k () s) subs id
 
 int :: SetOperation
-int (_first :| []) = return ()
-int (first :| (x:xs)) = do
-  init <- lift $ collect x
+int (_first :| []      ) = return ()
+int (first  :| (x : xs)) = do
+  init         <- lift $ collect x
   intersection <- lift $ foldM reduce init xs
   P.filter (\(k :!: _) -> k `Map.member` intersection) first
-  where
-  collect = P.fold_ (\s (k :!: _) -> Map.insert k () s) Map.empty id 
+ where
+  collect = P.fold_ (\s (k :!: _) -> Map.insert k () s) Map.empty id
   reduce ints stream = Map.intersection ints <$> collect stream
 
 
