@@ -107,9 +107,15 @@ If you haven't seen the `<(command)` syntax before, it's a very useful shell too
 When using `smap` with sets, the behavior is pretty straightforward. It gets a bit more complicated when
 dealing with maps.
 
-If you provide `smap` with a filepath, it will construct a map where the keys equal the values. (This
-is equivalent to a set). If you pass in `+file1,file2` 
-as an argument, `smap` will construct a map using lines from file1 as keys and lines from file2 as values. 
+There are actually three ways you can pass a file argument to `smap`.
+
+1. If you just use a regular filepath, like `patients.txt` or `-` (for stdin/out), `smap` will create a map where the keys are equal to the values. This behaves like a set, which is why all the simple usage examples work this way.
+2. If you instead use an argument like `+file1,file2`, `smap` will use `file1` for the keys and `file2` for the values.
+3. If you instead use an argument like `@file`, `smap` will read/write keys/values on alternating lines. 
+This is useful for passing maps between invocations of `smap`. You can of course use `@-` to mean "alternating between keys and values on stdin/stdout".
+
+
+Here are some examples.
 
 We can get a list of patient last names using `cut -f 2 -d ' ' <patient file>`
 
@@ -146,6 +152,15 @@ To understand the above:
 * `<(cut -f 2 -d ' ' has_cold)` gets a list of family names of everyone who has a cold.
 
 So `int` is filtering the first argument (treated as a `key,value` stream) by the keys present in the second argument.
+
+#### Passing maps between `smap` invocations
+
+In earlier examples where we composed invocations of `smap`, we only passed sets between the various invocations. We can pass maps as well, using the `@` syntax to read/write keys and values from the same file (on alternating lines). For example, let's say we wanted to find patients whose family members have a cold *and* mumps. One way we could do it is
+
+```bash
+$ smap int +<(cut -f 2 -d ' ' patients),patients <(cut -f 2 -d ' ' has_cold) <(cut -f 2 -d ' ' has_mumps)
+```
+
 
 ### Approximate mode
 

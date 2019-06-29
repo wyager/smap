@@ -1,7 +1,7 @@
 module Smap.Commands (run) where
 
 import Prelude hiding (filter, subtract, init, sin)
-import qualified Data.HashMap.Strict as Map (insert, empty, member)
+import qualified Data.HashMap.Strict as Map (insert, intersection, empty, member)
 import Data.HashMap.Strict as Map (HashMap)
 import Data.Hashable (Hashable)
 import Data.ByteString.Char8 (ByteString)
@@ -42,19 +42,31 @@ cat streams = foldM filter Map.empty streams *> return ()
     then return seen
     else P.yield (bs :!: v) >> return (Map.insert bs () seen)
 
-filterStreamWith :: (Bool -> Bool) -> SetOperation
-filterStreamWith includeIfPresent (first :| seconds) = do
-  second <- lift $ collects seconds
-  P.filter (\(k :!: _) -> includeIfPresent (k `Map.member` second)) first
- where
-  collects = foldM collect Map.empty
-  collect subs = P.fold_ (\s (k :!: _) -> Map.insert k () s) subs id
+-- filterStreamWith :: (Bool -> Bool) -> (forall k . (Eq k, Hashable k) => k -> HashMap k () -> HashMap k ()) -> SetOperation
+-- filterStreamWith includeIfPresent update (first :| seconds) = do
+--   second <- lift $ collects seconds
+--   P.filter (\(k :!: _) -> includeIfPresent (k `Map.member` second)) first
+--  where
+--   collects xs= collect 
+--   collect subs = P.fold_ (\s (k :!: _) -> update k s) subs id
 
 sub :: SetOperation
-sub = filterStreamWith not
+sub (first :| seconds) = do
+  subs <- lift $ foldM collect Map.empty seconds
+  P.filter (\(k :!: _) -> not (k `Map.member` subs)) first
+  where
+  collect subs = P.fold_ (\s (k :!: _) -> Map.insert k () s) subs id
 
 int :: SetOperation
-int = filterStreamWith id
+int (_first :| []) = return ()
+int (first :| (x:xs)) = do
+  init <- lift $ collect x
+  intersection <- lift $ foldM reduce init xs
+  P.filter (\(k :!: _) -> k `Map.member` intersection) first
+  where
+  collect = P.fold_ (\s (k :!: _) -> Map.insert k () s) Map.empty id 
+  reduce ints stream = Map.intersection ints <$> collect stream
+
 
 deinterleave :: Monad m => S.Stream (S.Of a) m r -> S.Stream (S.Of (Pair a a)) m r
 deinterleave = fmap P.snd' . P.foldM step (return Nothing) return . hoist lift
