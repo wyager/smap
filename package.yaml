@@ -23,6 +23,7 @@ default-extensions:
 - BangPatterns
 - KindSignatures
 - DataKinds
+- OverloadedStrings
 
 dependencies:
 - base >= 4.7 && < 5
@@ -38,6 +39,7 @@ dependencies:
 - strict
 - text
 - siphash
+- mmorph
 
 library:
   source-dirs: src

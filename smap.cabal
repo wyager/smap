@@ -4,10 +4,10 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 55e2b53f48431c3db97e3ebe8f47813ebd7708965b561aaa96b836e9cb698939
+-- hash: 17f754740c0bbfcaf5a0d41a5cc3172ae4c4a6b75a9aea71c6b2b1bf67362b68
 
 name:           smap
-version:        0.3.0
+version:        0.2.1
 synopsis:       A command line tool for working with sets and maps
 description:    Please see the README below or on GitHub at <https://github.com/wyager/smap>
 category:       Text
@@ -35,13 +35,14 @@ library
       Paths_smap
   hs-source-dirs:
       src
-  default-extensions: TupleSections RankNTypes ScopedTypeVariables LambdaCase BangPatterns KindSignatures DataKinds
+  default-extensions: TupleSections RankNTypes ScopedTypeVariables LambdaCase BangPatterns KindSignatures DataKinds OverloadedStrings
   ghc-options: -O2 -Wall -fexpose-all-unfoldings -optP-Wno-nonportable-include-path
   build-depends:
       attoparsec
     , base >=4.7 && <5
     , bytestring
     , hashable
+    , mmorph
     , optparse-applicative
     , resourcet
     , siphash
@@ -59,13 +60,14 @@ executable smap
       Paths_smap
   hs-source-dirs:
       app
-  default-extensions: TupleSections RankNTypes ScopedTypeVariables LambdaCase BangPatterns KindSignatures DataKinds
+  default-extensions: TupleSections RankNTypes ScopedTypeVariables LambdaCase BangPatterns KindSignatures DataKinds OverloadedStrings
   ghc-options: -rtsopts -Wall -O2 -fspecialize-aggressively -optP-Wno-nonportable-include-path
   build-depends:
       attoparsec
     , base >=4.7 && <5
     , bytestring
     , hashable
+    , mmorph
     , optparse-applicative
     , resourcet
     , siphash
@@ -85,13 +87,14 @@ test-suite smap-test
       Paths_smap
   hs-source-dirs:
       test
-  default-extensions: TupleSections RankNTypes ScopedTypeVariables LambdaCase BangPatterns KindSignatures DataKinds
+  default-extensions: TupleSections RankNTypes ScopedTypeVariables LambdaCase BangPatterns KindSignatures DataKinds OverloadedStrings
   ghc-options: -rtsopts
   build-depends:
       attoparsec
     , base >=4.7 && <5
     , bytestring
     , hashable
+    , mmorph
     , optparse-applicative
     , resourcet
     , siphash

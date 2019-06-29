@@ -30,21 +30,15 @@ data Descriptor (ty :: InputType)
 data Accuracy = Approximate SipKey -- Don't keep the actual value as a key, just its hash
               | Exact -- Keep the actual value as a key
 
-data Command = Union Accuracy [Descriptor 'Set] Hdl
-             | Subtract Accuracy (Descriptor 'Stream) [Descriptor 'Set] Hdl
-             | Intersect Accuracy (Descriptor 'Stream) [Descriptor 'Set] Hdl
+data Command = Union Accuracy [Descriptor 'Set] (Descriptor 'Set)
+             | Subtract Accuracy (Descriptor 'Stream) [Descriptor 'Set] (Descriptor 'Stream)
+             | Intersect Accuracy (Descriptor 'Stream) [Descriptor 'Set] (Descriptor 'Stream)
 
 hdl :: A.Parser Hdl
 hdl = stdin <|> path
  where
   stdin = Std <$ A.char '-'
   path  = File . Text.unpack <$> A.takeWhile (/= ',')
-
-outHdl :: O.Parser Hdl
-outHdl = O.option
-  (aToO hdl)
-  (O.metavar "OUTFILE" <> O.short 'o' <> O.long "out" <> O.value Std <> O.help "Defaults to stdout."
-  )
 
 descriptor :: A.Parser (Descriptor ty)
 descriptor =
@@ -70,6 +64,15 @@ stream = O.argument
   (O.metavar "STREAM" <> O.help
     "Stream source file. Use '-' for stdin. Use +keyfile,valfile for separate keys and values."
   )
+
+output :: O.Parser (Descriptor a)
+output = O.option
+  (aToO descriptor)
+  (O.metavar "OUTPUT" <> O.help
+    "Output file(s). Use '-' for stdout. Use +keyfile,valfile for separate keys and values. Defaults to stdout"
+    <> O.short 'o'
+    <> O.long "output"
+  ) <|> pure (UnKeyed Std)
 
 sets :: O.Parser [Descriptor 'Set]
 sets = many $ O.argument
@@ -104,7 +107,7 @@ catCommand :: O.Mod O.CommandFields Command
 catCommand = O.command "cat" $ O.info
   (value O.<**> O.helper)
   (O.fullDesc <> O.progDesc "Set union. Output everything from the input sets, deduplicated.")
-  where value = Union <$> accuracy <*> sets <*> outHdl
+  where value = Union <$> accuracy <*> sets <*> output
 
 subCommand :: O.Mod O.CommandFields Command
 subCommand = O.command "sub" $ O.info
@@ -117,7 +120,7 @@ subCommand = O.command "sub" $ O.info
       ]
     )
   )
-  where value = Subtract <$> accuracy <*> stream <*> sets <*> outHdl
+  where value = Subtract <$> accuracy <*> stream <*> sets <*> output
 
 intersectCommand :: O.Mod O.CommandFields Command
 intersectCommand = O.command "int" $ O.info
@@ -131,7 +134,7 @@ intersectCommand = O.command "int" $ O.info
       ]
     )
   )
-  where value = Intersect <$> accuracy <*> stream <*> sets <*> outHdl
+  where value = Intersect <$> accuracy <*> stream <*> sets <*> output
 
 command :: IO Command
 command = O.execParser
