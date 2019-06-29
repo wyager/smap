@@ -1,5 +1,7 @@
 # smap - a command line tool for sets and maps
 
+This is a very minimal but powerful tool for performing union, subtraction, and intersection on sets and maps. If you often find yourself using commands like `sort`, `uniq`, `comm`, and really contorted `sed`/`awk` commands, this tool will probably help you. It's faster, simpler to remember, and doesn't require lexicographic ordering.
+
 ## Installation:
 
 To install from Hackage, run:
