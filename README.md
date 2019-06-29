@@ -155,11 +155,34 @@ So `int` is filtering the first argument (treated as a `key,value` stream) by th
 
 #### Passing maps between `smap` invocations
 
-In earlier examples where we composed invocations of `smap`, we only passed sets between the various invocations. We can pass maps as well, using the `@` syntax to read/write keys and values from the same file (on alternating lines). For example, let's say we wanted to find patients whose family members have a cold *and* mumps. One way we could do it is
+In earlier examples where we composed invocations of `smap`, we only passed sets between the various invocations. We can easily pass maps as well, using the `@` syntax to read/write keys and values from the same file (on alternating lines). For example, let's say we wanted to find patients whose family members have a cold *and* mumps. One way we could do it is
 
 ```bash
 $ smap int +<(cut -f 2 -d ' ' patients),patients <(cut -f 2 -d ' ' has_cold) <(cut -f 2 -d ' ' has_mumps)
+Jane Doe
 ```
+
+We could also write this as
+
+```bash
+$ smap int +<(cut -f 2 -d ' ' patients),patients <(cut -f 2 -d ' ' has_cold) -o @- | smap int @- <(cut -f 2 -d ' ' has_mumps)
+Jane Doe
+```
+
+What's going on here is that the first command is finding all patients who have a family member with a cold, and outputting to stdout each person's name (the value) *as well as* their family name (the key). We can see this by running:
+
+```bash
+$ smap int +<(cut -f 2 -d ' ' patients),patients <(cut -f 2 -d ' ' has_cold) -o @-
+Smith
+Bob Smith
+Doe
+Jane Doe
+Smith
+John Smith
+```
+
+Then, we have a second invocation of `smap int` which is reading these key/value pairs in from stdin and intersecting them with the set of families where someone has mumps.
+
 
 
 ### Approximate mode
