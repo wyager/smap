@@ -4,19 +4,22 @@ This is a very minimal but powerful tool for performing set/map union, subtracti
 
 ## Installation:
 
-To install from Hackage, run:
+You will want [cabal](https://www.haskell.org/cabal/) or [stack](https://www.haskellstack.org) if you don't already have one of them. 
+
+Then you can run 
 
 ```bash
 cabal install smap
 ```
 
-To install from source, you can use that or download this repo and run
+or
 
 ```bash
 stack install smap
 ```
 
-You will need [cabal](https://www.haskell.org/cabal/) or [stack](https://www.haskellstack.org) if you don't already have one of them. 
+You can also download this repo and run the same command inside the repo to install from source.
+
 
 ## Tutorial:
 
