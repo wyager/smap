@@ -74,40 +74,24 @@ withAccuracy accuracy op inputs output = case accuracy of
   Exact           -> approximateWith id id
   Approximate key -> approximateWith (\bs -> let SipHash h = hash key bs in h) (toStrict . toLazyByteString . word64Dec)
  where
-  format = BS8.unlines . S.maps (\((_k :!: v) P.:> r) -> BS8.fromStrict v >> return r)
-  hout formatApproximation = case output of
-    UnKeyed Std         -> BS8.stdout . format
-    UnKeyed (File path) -> BS8.writeFile path . format
-    Keyed l r -> split l r . keyMap formatApproximation
+  valuesOnly = \(_k :!: v) -> P.yield (Right v)
+  separateFiles k2bs = \(k :!: v) -> P.yield (Left (k2bs k)) >> P.yield (Right v)
+  hout approxToBS = case output of
+    UnKeyed hdl         -> splitWith valuesOnly hdl hdl
+    Keyed l r -> splitWith (separateFiles approxToBS) l r 
   keyMap f = P.map (\(k :!: v) -> (f k :!: v))
-  approximateWith approximator formatApproximation =
-    Resource.runResourceT $ hout formatApproximation $ op $ fmap (keyMap approximator) inputs
+  approximateWith approximator approxToBS =
+    Resource.runResourceT $ hout approxToBS $ op $ fmap (keyMap approximator) inputs
 
-
-split :: Hdl -> Hdl -> Stream RIO ByteString ByteString -> RIO ()
-split kFile vFile = hout kFile . hout vFile . hoist unlinify . unlinify . separate
+-- Outputs the keys to one file and values to the other (simultaneously)
+splitWith :: (Pair k ByteString -> P.Stream (P.Of (Either ByteString ByteString)) RIO ()) -> Hdl -> Hdl -> Stream RIO k ByteString -> RIO ()
+splitWith split kFile vFile = hout kFile . hout vFile . hoist unlinify . unlinify . separate
   where
   hout Std         = BS8.stdout
   hout (File path) = BS8.writeFile path
-  separate paired = P.partitionEithers $ P.for paired $ \(k :!: v) -> P.yield (Left k) >> P.yield (Right v)
+  separate paired = P.partitionEithers $ P.for paired $ split
   unlinify :: Monad n => S.Stream (S.Of ByteString) n x -> BS8.ByteString n x
   unlinify = BS8.unlines . S.maps (\(b P.:> r) -> BS8.fromStrict b >> return r)
-
-
--- frobnicate :: Monad m => S.Stream (S.Of (Pair k v)) m a -> S.Stream (S.Of k) (S.Stream (S.Of v) m) a
--- frobnicate bong = P.partitionEithers $ P.for bong $ \(k :!: v) -> P.yield (Left k) >> P.yield (Right v)
-
--- shpongle :: Monad m => S.Stream (S.Of ByteString) (S.Stream (S.Of ByteString) m) a -> BS8.ByteString (BS8.ByteString m) a
--- shpongle = hoist blong . blong
---     where 
-    
-
--- cronk :: S.Stream (S.Of (Pair ByteString ByteString)) RIO a -> RIO a
--- cronk = BS8.stdout . BS8.stdout . shpongle . frobnicate
-
-
--- example :: IO ()
--- example = Resource.runResourceT $ cronk $ P.yield ("a" :!: "b") >> P.yield ("c" :!: "d")
 
 run :: Command -> IO ()
 run cmd = case cmd of
