@@ -169,7 +169,7 @@ $ smap int +<(cut -f 2 -d ' ' patients),patients <(cut -f 2 -d ' ' has_cold) <(c
 Jane Doe
 ```
 
-We could also write this as
+Thankfully Jane doesn't have any other family members who are at risk of catching both a cold and mumps. We could also write this as
 
 ```bash
 $ smap int +<(cut -f 2 -d ' ' patients),patients <(cut -f 2 -d ' ' has_cold) -o @- | smap int @- <(cut -f 2 -d ' ' has_mumps)
