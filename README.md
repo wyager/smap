@@ -120,9 +120,9 @@ This is useful for passing maps between invocations of `smap`. You can of course
 
 Here are some examples.
 
-We can get a list of patient last names using `cut -f 2 -d ' ' <patient file>`
-
 #### Pick one patient from each family:
+
+We can get a list of patient last names using `cut -f 2 -d ' ' <patient file>`.
 
 ```bash
 $ smap cat +<(cut -f 2 -d ' ' patients),patients
