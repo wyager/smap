@@ -1,3 +1,5 @@
+
+
 -- Command line flag parsing 
 
 module Smap.Flags
@@ -14,7 +16,7 @@ import qualified Data.Attoparsec.Text as A
 import qualified Data.Text as Text
 import qualified Options.Applicative as O
 import Control.Applicative (many, (<|>))
-import Crypto.MAC.SipHash (SipKey(..))
+import Data.ByteArray.Hash (SipKey(..))
 
 data Hdl = Std -- stdin/stdout
          | File FilePath

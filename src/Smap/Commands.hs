@@ -13,7 +13,7 @@ import Control.Monad.Morph (hoist, lift)
 import Data.Strict.Tuple (Pair((:!:)))
 import Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Control.Monad.Trans.Resource as Resource
-import Crypto.MAC.SipHash (SipHash(..), hash)
+import Data.ByteArray.Hash (SipHash(..), sipHash)
 import Data.ByteString.Builder (word64HexFixed, toLazyByteString)
 import Data.ByteString.Lazy (toStrict)
 import Smap.Flags
@@ -102,7 +102,7 @@ withAccuracy
 withAccuracy accuracy op inputs output = case accuracy of
   Exact           -> approximateWith id id
   Approximate key -> approximateWith
-    (\bs -> let SipHash h = hash key bs in h)
+    (\bs -> let SipHash h = sipHash key bs in h)
     (toStrict . toLazyByteString . word64HexFixed)
  where
   valuesOnly (_k :!: v) = P.yield (Right v)

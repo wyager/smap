@@ -38,7 +38,7 @@ dependencies:
 - transformers
 - strict
 - text
-- siphash
+- memory
 - mmorph
 
 library:

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f713cfceba76b8896cfda9f8d0ed6828e4f4e15e5bd601af45e694e19528cca5
+-- hash: dc720fa6c892a34f74beb6a1e1ed38ba1e526f447ab01acf0def007688bdb05e
 
 name:           smap
 version:        0.3.0
@@ -42,10 +42,10 @@ library
     , base >=4.7 && <5
     , bytestring
     , hashable
+    , memory
     , mmorph
     , optparse-applicative
     , resourcet
-    , siphash
     , streaming
     , streaming-bytestring
     , strict
@@ -67,10 +67,10 @@ executable smap
     , base >=4.7 && <5
     , bytestring
     , hashable
+    , memory
     , mmorph
     , optparse-applicative
     , resourcet
-    , siphash
     , smap
     , streaming
     , streaming-bytestring
@@ -94,10 +94,10 @@ test-suite smap-test
     , base >=4.7 && <5
     , bytestring
     , hashable
+    , memory
     , mmorph
     , optparse-applicative
     , resourcet
-    , siphash
     , smap
     , streaming
     , streaming-bytestring
