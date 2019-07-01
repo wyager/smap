@@ -72,7 +72,7 @@ splitWith
   -> Hdl
   -> Stream RIO k ByteString
   -> RIO ()
-splitWith split kFile vFile = hout kFile . hout vFile . hoist unlinify . unlinify . separate
+splitWith split kFile vFile = hout vFile . hout kFile . hoist unlinify . unlinify . separate
  where
   hout Std         = BS8.stdout
   hout (File path) = BS8.writeFile path
