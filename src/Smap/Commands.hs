@@ -106,8 +106,8 @@ withAccuracy accuracy op inputs output = case accuracy of
     (toStrict . toLazyByteString . word64HexFixed)
  where
   valuesOnly (_k :!: v) = P.yield (Right v)
-  separateFiles k2bs (k :!: v) = P.yield (Left (k2bs k)) >> P.yield (Right v)
   sameFile k2bs (k :!: v) = P.yield (Right (k2bs k)) >> P.yield (Right v)
+  separateFiles k2bs (k :!: v) = P.yield (Left (k2bs k)) >> P.yield (Right v)
   outputUsing k2bs = case output of
     UnKeyed     hdl -> splitWith valuesOnly hdl hdl
     Interleaved hdl -> splitWith (sameFile k2bs) hdl hdl
