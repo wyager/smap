@@ -27,7 +27,7 @@ data FileType = Set -- Duplicates are discarded
 
 data Descriptor (ty :: FileType)
    = Separate Hdl Hdl -- Keys are in the first file, values in the second (map behavior)
-   | Interleaved Hdl -- Keys and values are on separate lines in the same file
+   | Interleaved Hdl -- Keys and values are on separate lines in the same file (map behavior)
    | UnKeyed Hdl -- key = value (set behavior)
 
 data Accuracy = Approximate SipKey -- Don't keep the actual value as a key, just its hash
